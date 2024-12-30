@@ -1,0 +1,49 @@
+[package]
+name = "game"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# TODO: replace bottom line with, to remove dynamic linking bevy = "0.15.0"
+bevy = "0.15.0"           #{ version = "0.15.0", features = ["dynamic_linking"] }
+bevy_atmosphere = "0.12.2"
+bevy_dev_tools = "0.15.0"
+bevy_spectator = "0.7.0"
+
+# https://bevyengine.org/learn/quick-start/getting-started/setup/#improve-runtime-performance-optional
+log = { version = "*", features = [
+    "max_level_debug",
+    "release_max_level_warn",
+] }
+noise = "0.9.0"
+rand = "0.8.5"
+
+# https://bevyengine.org/learn/quick-start/getting-started/setup/#compile-with-performance-optimizations
+########################################### dev compile time optimizations ######################################################
+# Enable a small amount of optimization in the dev profile.
+[profile.dev]
+opt-level = 1
+
+# Enable a large amount of optimization in the dev profile for dependencies.
+[profile.dev.package."*"]
+opt-level = 3
+
+########################################### prod release optimizations ##########################################################
+# Enable more optimization in the release profile at the cost of compile time.
+[profile.release]
+# Compile the entire crate as one unit.
+# Slows compile times, marginal improvements.
+codegen-units = 1
+# Do a second optimization pass over the entire program, including dependencies.
+# Slows compile times, marginal improvements.
+lto = "thin"
+
+# Optimize for size in the wasm-release profile to reduce load times and bandwidth usage on web.
+[profile.wasm-release]
+# Default to release profile values.
+inherits = "release"
+# Optimize with size in mind (also try "z", sometimes it is better).
+# Slightly slows compile times, great improvements to file size and runtime performance.
+opt-level = "s"
+# Strip all debugging information from the binary to slightly reduce file size.
+strip = "debuginfo"
