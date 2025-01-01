@@ -33,7 +33,7 @@ fn spawn_player(mut commands: Commands, mut game: ResMut<Game>, asset_server: Re
                 Transform {
                     translation: Vec3::new(
                         game.player.row as f32,
-                        game.board[game.player.col][game.player.row].height,
+                        game.board[game.player.col][game.player.row].position.y,
                         game.player.col as f32,
                     ),
                     rotation: Quat::from_rotation_y(-PI / 2.),
@@ -91,7 +91,7 @@ fn move_player(
             *transforms.get_mut(game.player.entity.unwrap()).unwrap() = Transform {
                 translation: Vec3::new(
                     game.player.row as f32,
-                    game.board[game.player.col][game.player.row].height,
+                    game.board[game.player.col][game.player.row].position.y,
                     game.player.col as f32,
                 ),
                 rotation: Quat::from_rotation_y(rotation),

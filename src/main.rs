@@ -9,8 +9,6 @@ use game::{
     terrain::*,
 };
 
-// use noise::{NoiseFn, Perlin, Seedable};
-
 // fn main() {
 //     App::new()
 

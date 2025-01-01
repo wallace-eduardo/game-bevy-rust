@@ -1,5 +1,6 @@
 use crate::*;
 use bevy::prelude::*;
+use noise::{NoiseFn, Perlin};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use shared::{Cell, Game, Random};
 
@@ -19,18 +20,23 @@ fn terrain_startup(mut commands: Commands, asset_server: Res<AssetServer>, mut g
         StdRng::from_entropy()
     };
 
+    let perlin = Perlin::new(rng.gen());
+
     // spawn the game board
-    let cell_scene = asset_server.load(GltfAssetLabel::Scene(0).from_asset("tile.glb"));
+    let cell_scene =
+        asset_server.load(GltfAssetLabel::Scene(0).from_asset("Nature (Kenney)/ground_grass.glb"));
     game.board = (0..BOARD_SIZE_COLS)
         .map(|j| {
             (0..BOARD_SIZE_ROWS)
                 .map(|i| {
-                    let height = rng.gen_range(-0.1..0.1);
+                    let perlin_noise = perlin.get([i as f64 / 10.0, j as f64 / 10.0]) as f32;
+                    //let random_height_jitter = rng.gen_range(-0.1..0.1);
+                    let cell = Cell::new(i as f32, perlin_noise, j as f32);
                     commands.spawn((
-                        Transform::from_xyz(i as f32, height - 0.2, j as f32),
+                        Transform::from_translation(cell.position),
                         SceneRoot(cell_scene.clone()),
                     ));
-                    Cell { height }
+                    cell
                 })
                 .collect()
         })

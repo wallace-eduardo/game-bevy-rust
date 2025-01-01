@@ -9,7 +9,15 @@ pub enum GameState {
 }
 
 pub struct Cell {
-    pub height: f32,
+    pub position: Vec3,
+}
+
+impl Cell {
+    pub fn new(x: f32, y: f32, z: f32) -> Self {
+        Self {
+            position: Vec3::new(x, y, z),
+        }
+    }
 }
 
 #[derive(Default)]
