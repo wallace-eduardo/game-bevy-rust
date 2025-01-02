@@ -33,7 +33,10 @@ fn daylight_cycle(
 fn setup_atmosphere(mut commands: Commands) {
     // Our Sun
     commands.spawn((
-        DirectionalLight::default(),
+        DirectionalLight {
+            shadows_enabled: true,
+            ..default()
+        },
         Sun, // Marks the light as Sun
     ));
 }
