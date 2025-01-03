@@ -7,3 +7,4 @@ pub const CAMERA_INITIAL_FOCUS: [f32; 3] = [
     BOARD_SIZE_COLS as f32 / 2.0 - 0.5,
 ];
 pub use std::f32::consts::PI;
+pub const PERLIN_NOISE_SCALE: f64 = 0.1;

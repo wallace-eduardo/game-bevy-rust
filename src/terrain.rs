@@ -29,7 +29,9 @@ fn terrain_startup(mut commands: Commands, asset_server: Res<AssetServer>, mut g
         .map(|j| {
             (0..BOARD_SIZE_ROWS)
                 .map(|i| {
-                    let perlin_noise = perlin.get([i as f64 / 10.0, j as f64 / 10.0]) as f32;
+                    let perlin_noise = perlin
+                        .get([i as f64 * PERLIN_NOISE_SCALE, j as f64 * PERLIN_NOISE_SCALE])
+                        as f32;
                     //let random_height_jitter = rng.gen_range(-0.1..0.1);
                     let cell = Cell::new(i as f32, perlin_noise, j as f32);
                     commands.spawn((
