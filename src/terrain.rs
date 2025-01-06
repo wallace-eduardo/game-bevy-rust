@@ -33,7 +33,7 @@ fn terrain_startup(mut commands: Commands, asset_server: Res<AssetServer>, mut g
                         .get([i as f64 * PERLIN_NOISE_SCALE, j as f64 * PERLIN_NOISE_SCALE])
                         as f32;
                     //let random_height_jitter = rng.gen_range(-0.1..0.1);
-                    let cell = Cell::new(i as f32, perlin_noise, j as f32);
+                    let cell = Cell::new(i as f32, perlin_noise, j as f32, perlin_noise);
                     commands.spawn((
                         Transform::from_translation(cell.position),
                         SceneRoot(cell_scene.clone()),
