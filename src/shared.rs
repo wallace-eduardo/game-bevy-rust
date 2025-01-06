@@ -8,14 +8,25 @@ pub enum GameState {
     //Paused,
 }
 
+pub enum CellType {
+    Grass,
+    Water,
+}
+
 pub struct Cell {
     pub position: Vec3,
+    pub cell_type: CellType,
 }
 
 impl Cell {
-    pub fn new(x: f32, y: f32, z: f32) -> Self {
+    pub fn new(x: f32, y: f32, z: f32, noise: f64) -> Self {
         Self {
             position: Vec3::new(x, y, z),
+            cell_type: if noise < 0.0 {
+                CellType::Water
+            } else {
+                CellType::Grass
+            },
         }
     }
 }
