@@ -8,7 +8,6 @@ edition = "2021"
 bevy = "0.15.0"           #{ version = "0.15.0", features = ["dynamic_linking"] }
 bevy_atmosphere = "0.12.2"
 bevy_dev_tools = "0.15.0"
-bevy_spectator = "0.7.0"
 
 # https://bevyengine.org/learn/quick-start/getting-started/setup/#improve-runtime-performance-optional
 log = { version = "*", features = [

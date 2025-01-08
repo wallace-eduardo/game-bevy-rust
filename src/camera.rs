@@ -1,148 +1,216 @@
 use crate::*;
-use bevy::prelude::*;
-use bevy_spectator::{Spectator, SpectatorPlugin};
+use bevy::{
+    input::mouse::MouseMotion,
+    prelude::*,
+    window::{CursorGrabMode, PrimaryWindow},
+};
 
-// fn camera_drag(
-//     mut primary_window: Query<&mut Window, With<PrimaryWindow>>,
-//     mut mouse_motion: EventReader<MouseMotion>,
-//     mouse_input: Res<ButtonInput<MouseButton>>,
-//     mut camera: Query<&mut Transform, With<Camera3d>>,
-// ) {
-//     if mouse_input.pressed(MouseButton::Middle) {
-//         if let Ok(mut window) = primary_window.get_single_mut() {
-//             const SENSITIVITY: f32 = 0.00012;
-//             match window.cursor_options.grab_mode {
-//                 CursorGrabMode::None => {
-//                     window.cursor_options.grab_mode = CursorGrabMode::Confined;
-//                     window.cursor_options.visible = false;
-//                     for mut transform in camera.iter_mut() {
-//                         for ev in mouse_motion.read() {
-//                             let (mut yaw, mut pitch, _) =
-//                                 transform.rotation.to_euler(EulerRot::YXZ);
-//                             match window.cursor_options.grab_mode {
-//                                 CursorGrabMode::None => (),
-//                                 _ => {
-//                                     // Using smallest of height or width ensures equal vertical and horizontal sensitivity
-//                                     let window_scale = window.height().min(window.width());
-//                                     pitch -= (SENSITIVITY * ev.delta.y * window_scale).to_radians();
-//                                     yaw -= (SENSITIVITY * ev.delta.x * window_scale).to_radians();
-//                                 }
-//                             }
+#[derive(Component)]
+pub struct Camera;
 
-//                             pitch = pitch.clamp(-1.54, 1.54);
+fn camera_update(
+    time: Res<Time>,
+    keys: Res<ButtonInput<KeyCode>>,
+    buttons: Res<ButtonInput<MouseButton>>,
+    mut motion: EventReader<MouseMotion>,
+    mut settings: ResMut<CameraSettings>,
+    mut windows: Query<(&mut Window, Option<&PrimaryWindow>)>,
+    mut camera_transforms: Query<&mut Transform, With<Camera>>,
+    mut focus: Local<bool>,
+) {
+    let Some(camera_id) = settings.active_camera else {
+        motion.clear();
+        return;
+    };
 
-//                             // Order is important to prevent unintended roll
-//                             transform.rotation = Quat::from_axis_angle(Vec3::Y, yaw)
-//                                 * Quat::from_axis_angle(Vec3::X, pitch);
-//                         }
-//                     }
-//                 }
-//                 _ => {
-//                     window.cursor_options.grab_mode = CursorGrabMode::None;
-//                     window.cursor_options.visible = true;
-//                 }
-//             }
-//         } else {
-//             warn!("Primary window not found for `cursor_grab`!");
-//         }
-//     }
-// }
+    let Ok(mut camera_transform) = camera_transforms.get_mut(camera_id) else {
+        error!("Failed to find camera for active camera entity ({camera_id:?})");
+        settings.active_camera = None;
+        motion.clear();
+        return;
+    };
 
-// fn move_camera(
-//     time: Res<Time>,
-//     keyboard_input: Res<ButtonInput<KeyCode>>,
-//     mut mouse_wheel: EventReader<MouseWheel>,
-//     mut camera: Query<&mut Transform, With<Camera3d>>,
-// ) {
-//     let movement_speed = 30.0;
-//     let rotation_speed = 3.5;
-//     let scroll_speed = 60.0;
-//     let mut direction = Vec3::ZERO;
-//     let mut rotation = 0.0;
+    let mut window = match settings.active_window {
+        Some(active) => {
+            let Ok((window, _)) = windows.get_mut(active) else {
+                error!("Failed to find active window ({active:?})");
+                settings.active_window = None;
+                motion.clear();
+                return;
+            };
 
-//     // Get movement input
-//     if keyboard_input.pressed(KeyCode::KeyW) {
-//         direction.z -= movement_speed;
-//     }
-//     if keyboard_input.pressed(KeyCode::KeyS) {
-//         direction.z += movement_speed;
-//     }
-//     if keyboard_input.pressed(KeyCode::KeyA) {
-//         direction.x -= movement_speed;
-//     }
-//     if keyboard_input.pressed(KeyCode::KeyD) {
-//         direction.x += movement_speed;
-//     }
+            window
+        }
+        None => {
+            let Some((window, _)) = windows.iter_mut().find(|(_, primary)| primary.is_some())
+            else {
+                panic!("No primary window found!");
+            };
 
-//     if keyboard_input.pressed(KeyCode::KeyR) {
-//         // reset camera position and focus
-//         for mut transform in camera.iter_mut() {
-//             transform.translation = Vec3::new(
-//                 -(BOARD_SIZE_ROWS as f32 / 2.0),
-//                 2.0 * BOARD_SIZE_COLS as f32 / 3.0,
-//                 BOARD_SIZE_COLS as f32 / 2.0 - 0.5,
-//             );
-//             transform.look_at(Vec3::from(RESET_FOCUS), Vec3::Y);
-//         }
-//     }
+            window
+        }
+    };
 
-//     // Get scroll input
-//     for ev in mouse_wheel.read() {
-//         if ev.y > 0.0 {
-//             direction.y -= scroll_speed; // Scroll up
-//         } else if ev.y < 0.0 {
-//             direction.y += scroll_speed; // Scroll down
-//         }
-//     }
+    let mut set_focus = |focused: bool| {
+        *focus = focused;
+        if !settings.orthographic {
+            let grab_mode = match focused {
+                true => CursorGrabMode::Confined,
+                false => CursorGrabMode::None,
+            };
+            window.cursor_options.grab_mode = grab_mode;
+            window.cursor_options.visible = !focused;
+        }
+    };
 
-//     // Get rotation input
-//     if keyboard_input.pressed(KeyCode::KeyQ) {
-//         rotation += rotation_speed;
-//     }
-//     if keyboard_input.pressed(KeyCode::KeyE) {
-//         rotation -= rotation_speed;
-//     }
+    if keys.just_pressed(KeyCode::Escape) {
+        set_focus(false);
+    } else if buttons.just_pressed(MouseButton::Left) {
+        set_focus(true);
+    }
 
-//     // Apply movement and rotation
-//     for mut transform in camera.iter_mut() {
-//         if direction != Vec3::ZERO {
-//             // Convert world direction to object space
-//             let local_direction = transform.rotation * direction;
-//             transform.translation += local_direction * time.delta_secs();
-//         }
+    // When in orthographic mode, mouse capturing is disabled. Movement should therefore always be enabled.
+    if *focus || settings.orthographic {
+        // rotation
+        if !settings.orthographic {
+            let mouse_delta = {
+                let mut total = Vec2::ZERO;
+                for d in motion.read() {
+                    total += d.delta;
+                }
+                total
+            };
 
-//         if rotation != 0.0 {
-//             transform.rotate_y(rotation * time.delta_secs());
-//         }
-//     }
-// }
+            let mouse_x = -mouse_delta.x * settings.sensitivity;
+            let mouse_y = -mouse_delta.y * settings.sensitivity;
 
-// // // update the score displayed during the game
-// // fn scoreboard_system(game: Res<Game>, mut display: Single<&mut Text>) {
-// //     display.0 = format!("Money: {}", game.player.money);
-// // }
+            let mut dof: Vec3 = camera_transform.rotation.to_euler(EulerRot::YXZ).into();
 
-pub struct CameraPlugin;
+            dof.x += mouse_x;
+            // At 90 degrees, yaw gets misinterpreted as roll. Making 89 the limit fixes that.
+            dof.y = (dof.y + mouse_y).clamp(-89f32.to_radians(), 89f32.to_radians());
+            dof.z = 0f32;
 
-impl Plugin for CameraPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins(SpectatorPlugin)
-            .add_systems(Startup, setup_camera);
+            camera_transform.rotation = Quat::from_euler(EulerRot::YXZ, dof.x, dof.y, dof.z);
+        }
+
+        // translation
+        {
+            let forward = if keys.pressed(KeyCode::KeyW) {
+                1f32
+            } else {
+                0f32
+            };
+
+            let backward = if keys.pressed(KeyCode::KeyS) {
+                1f32
+            } else {
+                0f32
+            };
+
+            let right = if keys.pressed(KeyCode::KeyD) {
+                1f32
+            } else {
+                0f32
+            };
+
+            let left = if keys.pressed(KeyCode::KeyA) {
+                1f32
+            } else {
+                0f32
+            };
+
+            let up_cond = if !settings.orthographic {
+                keys.pressed(KeyCode::Space)
+            } else {
+                keys.pressed(KeyCode::KeyW)
+            };
+            let up = if up_cond { 1f32 } else { 0f32 };
+
+            let down_cond = if !settings.orthographic {
+                keys.pressed(KeyCode::ControlLeft)
+            } else {
+                keys.pressed(KeyCode::KeyS)
+            };
+            let down = if down_cond { 1f32 } else { 0f32 };
+
+            let speed = if keys.pressed(KeyCode::ShiftLeft) {
+                settings.alt_speed
+            } else {
+                settings.base_speed
+            };
+
+            let delta_axial = if settings.orthographic {
+                0.0
+            } else {
+                (forward - backward) * speed
+            };
+            let delta_lateral = (right - left) * speed;
+            let delta_vertical = (up - down) * speed;
+
+            let mut forward = *camera_transform.forward();
+            forward.y = 0f32;
+            forward = forward.normalize_or_zero(); // fly fast even when look down/up
+
+            let mut right = *camera_transform.right();
+            right.y = 0f32; // more of a sanity check
+            let up = Vec3::Y;
+
+            let result = forward * delta_axial + right * delta_lateral + up * delta_vertical;
+
+            camera_transform.translation += result * time.delta_secs();
+        }
+    }
+
+    motion.clear();
+}
+
+#[derive(Resource)]
+pub struct CameraSettings {
+    /// The `Entity` of the active [`Camera`]. (Default: `None`)
+    ///
+    /// Use this to control which [`Camera`] you are using.
+    ///
+    /// Setting to `None` will disable the camera mode.
+    pub active_camera: Option<Entity>,
+    /// The `Entity` of the active `Window`. (Default: `None`)
+    ///
+    /// Use this to control which `Window` will grab your mouse/hide the cursor.
+    ///
+    /// If `None`, the primary window will be used.
+    pub active_window: Option<Entity>,
+    /// The base speed of the active [`Camera`]. (Default: `10.0`)
+    ///
+    /// Use this to control how fast the [`Camera`] normally moves.
+    pub base_speed: f32,
+    /// The alternate speed of the active [`Camera`]. (Default: `50.0`)
+    ///
+    /// Use this to control how fast the [`Camera`] moves when you hold The key to move fast.
+    pub alt_speed: f32,
+    /// The camera sensitivity of the active [`Camera`]. (Default: `0.001`)
+    ///
+    /// Use this to control how fast the [`Camera`] turns when you move the mouse.
+    pub sensitivity: f32,
+    /// Use a control scheme more fit for orthographic (2D) rendering
+    ///
+    /// Disables mouse capturing and hiding, prevents moving along z-axis and uses W and S for y-axis movement
+    pub orthographic: bool,
+}
+
+impl Default for CameraSettings {
+    fn default() -> Self {
+        Self {
+            active_camera: None,
+            active_window: None,
+            base_speed: 10.0,
+            alt_speed: 50.0,
+            sensitivity: 0.001,
+            orthographic: false,
+        }
     }
 }
 
-fn setup_camera(mut commands: Commands) {
-    // commands.spawn((
-    //     Camera3d::default(),
-    //     Transform::from_xyz(
-    //         -(BOARD_SIZE_ROWS as f32 / 2.0),
-    //         2.0 * BOARD_SIZE_COLS as f32 / 3.0,
-    //         BOARD_SIZE_COLS as f32 / 2.0 - 0.5,
-    //     )
-    //     .looking_at(Vec3::from(RESET_FOCUS), Vec3::Y),
-    //     AtmosphereCamera::default(),
-    // ));
-
+fn camera_setup(mut commands: Commands) {
     // Spawn our camera
     commands.spawn((
         Camera3d::default(),
@@ -154,6 +222,35 @@ fn setup_camera(mut commands: Commands) {
         .looking_at(Vec3::from(CAMERA_INITIAL_FOCUS), Vec3::Y),
         Msaa::Sample4,
         bevy_atmosphere::plugin::AtmosphereCamera::default(), // Marks camera as having a skybox, by default it doesn't specify the render layers the skybox can be seen on
-        Spectator, // Marks camera as spectator (specific to bevy_spectator)
+        Camera,
     ));
+}
+
+fn mark_active_camera(cameras: Query<Entity, With<Camera>>, mut settings: ResMut<CameraSettings>) {
+    use bevy::ecs::query::QuerySingleError;
+
+    if settings.active_camera.is_none() {
+        settings.active_camera = match cameras.get_single() {
+            Ok(a) => Some(a),
+            Err(QuerySingleError::NoEntities(_)) => {
+                warn!("Failed to find a Spectator; Active camera will remain unset.");
+                None
+            }
+            Err(QuerySingleError::MultipleEntities(_)) => {
+                warn!("Found more than one Spectator; Active camera will remain unset.");
+                None
+            }
+        };
+    }
+}
+
+pub struct CameraPlugin;
+
+impl Plugin for CameraPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<CameraSettings>()
+            .add_systems(Startup, camera_setup)
+            .add_systems(PostStartup, mark_active_camera)
+            .add_systems(Update, camera_update);
+    }
 }
