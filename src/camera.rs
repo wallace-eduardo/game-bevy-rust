@@ -18,13 +18,8 @@ fn camera_update(
     mut camera_transforms: Query<&mut Transform, With<Camera>>,
     mut focus: Local<bool>,
 ) {
-    let Some(camera_id) = settings.active_camera else {
-        motion.clear();
-        return;
-    };
-
-    let Ok(mut camera_transform) = camera_transforms.get_mut(camera_id) else {
-        error!("Failed to find camera for active camera entity ({camera_id:?})");
+    let Ok(mut camera_transform) = camera_transforms.get_single_mut() else {
+        error!("Failed to find camera for active camera");
         settings.active_camera = None;
         motion.clear();
         return;
@@ -226,31 +221,12 @@ fn camera_setup(mut commands: Commands) {
     ));
 }
 
-fn mark_active_camera(cameras: Query<Entity, With<Camera>>, mut settings: ResMut<CameraSettings>) {
-    use bevy::ecs::query::QuerySingleError;
-
-    if settings.active_camera.is_none() {
-        settings.active_camera = match cameras.get_single() {
-            Ok(a) => Some(a),
-            Err(QuerySingleError::NoEntities(_)) => {
-                warn!("Failed to find a Spectator; Active camera will remain unset.");
-                None
-            }
-            Err(QuerySingleError::MultipleEntities(_)) => {
-                warn!("Found more than one Spectator; Active camera will remain unset.");
-                None
-            }
-        };
-    }
-}
-
 pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CameraSettings>()
             .add_systems(Startup, camera_setup)
-            .add_systems(PostStartup, mark_active_camera)
             .add_systems(Update, camera_update);
     }
 }
