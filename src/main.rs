@@ -1,4 +1,11 @@
-use bevy::prelude::*;
+use bevy::{
+    pbr::wireframe::{Wireframe, WireframePlugin},
+    prelude::*,
+    render::{
+        settings::{RenderCreation, WgpuFeatures, WgpuSettings},
+        RenderPlugin,
+    },
+};
 
 use game::{
     atmosphere::AtmospherePlugin,
@@ -30,13 +37,22 @@ fn main() {
     App::new()
         .init_resource::<Game>()
         .add_plugins((
-            DefaultPlugins,
+            DefaultPlugins.set(RenderPlugin {
+                render_creation: RenderCreation::Automatic(WgpuSettings {
+                    // WARN this is a native only feature. It will not work with webgl or webgpu
+                    features: WgpuFeatures::POLYGON_MODE_LINE,
+                    ..default()
+                }),
+                ..default()
+            }),
             AtmospherePlugin,
             ShowFPSPlugin,
             TerrainPlugin,
             PlayerPlugin,
             CameraPlugin,
+            WireframePlugin,
         ))
+        .add_systems(Update, toggle_wireframe)
         .init_state::<GameState>()
         .add_systems(Startup, debug_system)
         .run();
@@ -88,4 +104,20 @@ fn debug_system(
         MeshMaterial3d(materials.add(StandardMaterial::from(Color::srgb(0.0, 0.0, 0.8)))),
         Transform::from_xyz(0., 0., 1.),
     ));
+}
+
+fn toggle_wireframe(
+    mut commands: Commands,
+    landscapes_wireframes: Query<Entity, (With<Terrain>, With<Wireframe>)>,
+    landscapes: Query<Entity, (With<Terrain>, Without<Wireframe>)>,
+    input: Res<ButtonInput<KeyCode>>,
+) {
+    if input.just_pressed(KeyCode::KeyF) {
+        for terrain in &landscapes {
+            commands.entity(terrain).insert(Wireframe);
+        }
+        for terrain in &landscapes_wireframes {
+            commands.entity(terrain).remove::<Wireframe>();
+        }
+    }
 }
