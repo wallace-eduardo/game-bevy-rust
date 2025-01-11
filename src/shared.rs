@@ -19,7 +19,7 @@ pub struct Cell {
 }
 
 impl Cell {
-    pub fn new(x: f32, y: f32, z: f32, noise: f32) -> Self {
+    pub fn new(x: f32, z: f32, noise: f32) -> Self {
         Self {
             position: Vec3::new(x, y, z),
             cell_type: if noise < 0.0 {
