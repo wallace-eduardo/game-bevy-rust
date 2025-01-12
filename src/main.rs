@@ -108,8 +108,8 @@ fn debug_system(
 
 fn toggle_wireframe(
     mut commands: Commands,
-    landscapes_wireframes: Query<Entity, (With<Terrain>, With<Wireframe>)>,
-    landscapes: Query<Entity, (With<Terrain>, Without<Wireframe>)>,
+    landscapes_wireframes: Query<Entity, (With<WireframeTerrain>, With<Wireframe>)>,
+    landscapes: Query<Entity, (With<WireframeTerrain>, Without<Wireframe>)>,
     input: Res<ButtonInput<KeyCode>>,
 ) {
     if input.just_pressed(KeyCode::KeyF) {

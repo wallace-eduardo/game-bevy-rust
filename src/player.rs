@@ -6,8 +6,8 @@ impl Player {
     fn default() -> Self {
         Player {
             entity: None,
-            row: BOARD_SIZE_ROWS / 2,
-            col: BOARD_SIZE_COLS / 2,
+            row: BOARD_SIZE_COLS / 2,
+            col: BOARD_SIZE_ROWS / 2,
             move_cooldown: Timer::from_seconds(0.2, TimerMode::Once),
         }
     }
@@ -17,8 +17,8 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        //app.add_systems(Startup, spawn_player)
-        //    .add_systems(Update, move_player);
+        app.add_systems(Startup, spawn_player.after(terrain::terrain_startup))
+            .add_systems(Update, move_player);
     }
 }
 
@@ -57,7 +57,7 @@ fn move_player(
         let mut rotation = 0.0;
 
         if keyboard_input.pressed(KeyCode::ArrowUp) {
-            if game.player.row < BOARD_SIZE_ROWS - 1 {
+            if game.player.row < BOARD_SIZE_COLS - 1 {
                 game.player.row += 1;
             }
             rotation = -PI / 2.;
@@ -71,7 +71,7 @@ fn move_player(
             moved = true;
         }
         if keyboard_input.pressed(KeyCode::ArrowRight) {
-            if game.player.col < BOARD_SIZE_COLS - 1 {
+            if game.player.col < BOARD_SIZE_ROWS - 1 {
                 game.player.col += 1;
             }
             rotation = PI;
