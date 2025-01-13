@@ -112,7 +112,7 @@ fn toggle_wireframe(
     landscapes: Query<Entity, (With<WireframeTerrain>, Without<Wireframe>)>,
     input: Res<ButtonInput<KeyCode>>,
 ) {
-    if input.just_pressed(KeyCode::KeyF) {
+    if input.just_pressed(KeyCode::KeyX) {
         for terrain in &landscapes {
             commands.entity(terrain).insert(Wireframe);
         }
