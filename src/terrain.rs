@@ -1,6 +1,7 @@
 use crate::*;
 
 use bevy::{color::palettes::tailwind::*, prelude::*, render::mesh::VertexAttributeValues};
+use bevy_rts_camera::Ground;
 use noise::{BasicMulti, NoiseFn, Perlin};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use shared::{Cell, Game, Random};
@@ -48,6 +49,7 @@ pub fn terrain_startup(
                     commands.spawn((
                         Transform::from_translation(cell.position),
                         SceneRoot(cell_scene.clone()),
+                        Ground,
                     ));
                     cell
                 })
@@ -112,5 +114,6 @@ pub fn terrain_startup(
             alpha: 0., // Change alpha to make visible
         }))),
         WireframeTerrain,
+        Ground,
     ));
 }

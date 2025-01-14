@@ -52,9 +52,9 @@ fn main() {
             CameraPlugin,
             WireframePlugin,
         ))
-        .add_systems(Update, toggle_wireframe)
         .init_state::<GameState>()
         .add_systems(Startup, debug_system)
+        .add_systems(Update, toggle_wireframe)
         .run();
 }
 
