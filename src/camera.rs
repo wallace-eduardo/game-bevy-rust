@@ -1,14 +1,24 @@
 use crate::*;
-use bevy::prelude::*;
+use bevy::{math::bounding::Aabb2d, prelude::*};
 use bevy_rts_camera::{RtsCamera, RtsCameraControls, RtsCameraPlugin};
 
+#[derive(Resource)]
+struct InitialCameraPosition(Transform);
+
+impl Default for InitialCameraPosition {
+    fn default() -> Self {
+        Self(
+            Transform::from_xyz(
+                BOARD_SIZE_COLS as f32 / 2.0,
+                1.0,
+                BOARD_SIZE_ROWS as f32 / 2.0,
+            )
+            .with_rotation(Quat::from_rotation_y(-PI / 2.0)),
+        )
+    }
+}
 fn camera_setup(mut commands: Commands) {
-    let camera_initial_position: Transform = Transform::from_xyz(
-        BOARD_SIZE_COLS as f32 / 2.0,
-        1.0,
-        BOARD_SIZE_ROWS as f32 / 2.0,
-    )
-    .with_rotation(Quat::from_rotation_y(-PI / 2.0));
+    let initial_transform = InitialCameraPosition::default();
 
     // Spawn our camera
     commands.spawn((
@@ -22,9 +32,11 @@ fn camera_setup(mut commands: Commands) {
             // Decrease smoothing
             smoothness: 0.1,
             // Starting position
-            target_focus: camera_initial_position,
+            target_focus: initial_transform.0,
             // Change starting zoom level
             target_zoom: 0.5,
+            // Increasing bounds, can move 200.0 in any direction starting at world center
+            bounds: Aabb2d::new(Vec2::ZERO, Vec2::new(200.0, 200.0)),
             // Disable dynamic angle (angle of camera will stay at `min_angle`)
             // dynamic_angle: false,
             ..default()
@@ -47,25 +59,15 @@ fn camera_setup(mut commands: Commands) {
             edge_pan_width: 0.1,
             // Increase pan speed
             pan_speed: 25.0,
+            // Reduce rotate speed
+            key_rotate_speed: 3.0,
             ..default()
         },
         Msaa::Sample4,
         bevy_atmosphere::plugin::AtmosphereCamera::default(), // Marks camera as having a skybox, by default it doesn't specify the render layers the skybox can be seen on
     ));
 
-    // Help text
-    commands.spawn(Text::new(format!(
-        "Press WASD to move the camera\n\
-                     Press E or Q to rotate the camera\n\
-                     Rotate the camera with right click\n\
-                     Drag pan with middle click\n\
-                     Arrow keys to move the player\n\
-                     Press X to toggle wireframe\n\
-                     Camera Initial position: (x: {:.2}, y:{:.2}, z:{:.2})",
-        camera_initial_position.translation.x,
-        camera_initial_position.translation.y,
-        camera_initial_position.translation.z
-    )));
+    commands.insert_resource(initial_transform);
 }
 
 pub struct CameraPlugin;
@@ -73,7 +75,19 @@ pub struct CameraPlugin;
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(RtsCameraPlugin)
-            .add_systems(Startup, camera_setup);
-        //.add_systems(Update, camera_update);
+            .add_systems(Startup, camera_setup)
+            .add_systems(Update, camera_reset);
+    }
+}
+
+fn camera_reset(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut query: Query<&mut RtsCamera>,
+    initial_position: Res<InitialCameraPosition>,
+) {
+    if keyboard_input.pressed(KeyCode::KeyR) {
+        if let Ok(mut camera) = query.get_single_mut() {
+            camera.target_focus = initial_position.0;
+        }
     }
 }

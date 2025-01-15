@@ -104,6 +104,26 @@ fn debug_system(
         MeshMaterial3d(materials.add(StandardMaterial::from(Color::srgb(0.0, 0.0, 0.8)))),
         Transform::from_xyz(0., 0., 1.),
     ));
+
+    // Help text
+    commands.spawn((
+        Text::new(format!(
+            "Press WASD to move the camera\n\
+                     Press E or Q to rotate the camera\n\
+                     Rotate the camera with right click\n\
+                     Drag pan with middle click\n\
+                     Arrow keys to move the player\n\
+                     Press X to toggle wireframe\n\
+                     //Testing format:{:.2}",
+            1
+        )),
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(5.0),
+            right: Val::Px(5.0),
+            ..default()
+        },
+    ));
 }
 
 fn toggle_wireframe(
