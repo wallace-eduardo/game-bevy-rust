@@ -1,5 +1,5 @@
 use bevy::{
-    pbr::wireframe::{Wireframe, WireframePlugin},
+    pbr::wireframe::WireframePlugin,
     prelude::*,
     render::{
         settings::{RenderCreation, WgpuFeatures, WgpuSettings},
@@ -54,7 +54,6 @@ fn main() {
         ))
         .init_state::<GameState>()
         .add_systems(Startup, debug_system)
-        .add_systems(Update, toggle_wireframe)
         .run();
 }
 
@@ -114,7 +113,8 @@ fn debug_system(
                      Drag pan with middle click\n\
                      Arrow keys to move the player\n\
                      Press X to toggle wireframe\n\
-                     //Testing format:{:.2}",
+                     Press C to toggle colors on terrain\n\
+                     Testing format:{:.2}",
             1
         )),
         Node {
@@ -124,20 +124,4 @@ fn debug_system(
             ..default()
         },
     ));
-}
-
-fn toggle_wireframe(
-    mut commands: Commands,
-    landscapes_wireframes: Query<Entity, (With<WireframeTerrain>, With<Wireframe>)>,
-    landscapes: Query<Entity, (With<WireframeTerrain>, Without<Wireframe>)>,
-    input: Res<ButtonInput<KeyCode>>,
-) {
-    if input.just_pressed(KeyCode::KeyX) {
-        for terrain in &landscapes {
-            commands.entity(terrain).insert(Wireframe);
-        }
-        for terrain in &landscapes_wireframes {
-            commands.entity(terrain).remove::<Wireframe>();
-        }
-    }
 }

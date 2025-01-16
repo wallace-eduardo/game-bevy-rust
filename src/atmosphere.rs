@@ -1,4 +1,3 @@
-use crate::*;
 use bevy::{pbr::light_consts::lux::AMBIENT_DAYLIGHT, prelude::*};
 
 // Marker for updating the position of the light, not needed unless we have multiple lights
@@ -45,6 +44,8 @@ pub struct AtmospherePlugin;
 
 impl Plugin for AtmospherePlugin {
     fn build(&self, app: &mut App) {
+        const DAY_NIGHT_CYCLE: u64 = 24 * 60; // 24 minutes in seconds
+
         app.insert_resource(bevy_atmosphere::model::AtmosphereModel::default()) // Default Atmosphere material, we can edit it to simulate another planet
             .insert_resource(CycleTimer(Timer::new(
                 bevy::utils::Duration::from_secs(DAY_NIGHT_CYCLE), // Update our atmosphere every 50ms (in a real game, this would be much slower, but for the sake of an example we use a faster update)

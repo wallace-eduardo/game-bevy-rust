@@ -1,6 +1,9 @@
 use crate::*;
 
-use bevy::{color::palettes::tailwind::*, prelude::*, render::mesh::VertexAttributeValues};
+use bevy::{
+    color::palettes::tailwind::*, pbr::wireframe::Wireframe, prelude::*,
+    render::mesh::VertexAttributeValues,
+};
 use bevy_rts_camera::Ground;
 use noise::{BasicMulti, NoiseFn, Perlin};
 use rand::{rngs::StdRng, Rng, SeedableRng};
@@ -10,12 +13,16 @@ pub struct TerrainPlugin;
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, terrain_startup);
+        app.add_systems(Startup, terrain_startup)
+            .add_systems(Update, toggle_wireframe);
     }
 }
 
 #[derive(Component)]
 pub struct WireframeTerrain;
+
+const PERLIN_NOISE_SCALE: f64 = 1.0 / 300.0;
+const TERRAIN_HEIGHT: f32 = 70.;
 
 pub fn terrain_startup(
     mut commands: Commands,
@@ -106,14 +113,29 @@ pub fn terrain_startup(
     terrain.compute_normals();
     commands.spawn((
         Mesh3d(meshes.add(terrain)),
-        // MeshMaterial3d(materials.add(Color::WHITE)),
         MeshMaterial3d(materials.add(Color::LinearRgba(LinearRgba {
             red: 1.,
             green: 1.,
             blue: 1.,
-            alpha: 0., // Change alpha to make visible
+            alpha: 0.0, // Change alpha to make visible
         }))),
         WireframeTerrain,
         Ground,
     ));
+}
+
+fn toggle_wireframe(
+    mut commands: Commands,
+    landscapes_wireframes: Query<Entity, (With<WireframeTerrain>, With<Wireframe>)>,
+    landscapes: Query<Entity, (With<WireframeTerrain>, Without<Wireframe>)>,
+    input: Res<ButtonInput<KeyCode>>,
+) {
+    if input.just_pressed(KeyCode::KeyX) {
+        for terrain in &landscapes {
+            commands.entity(terrain).insert(Wireframe);
+        }
+        for terrain in &landscapes_wireframes {
+            commands.entity(terrain).remove::<Wireframe>();
+        }
+    }
 }
