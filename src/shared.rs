@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use noise::{BasicMulti, Perlin};
 use rand::rngs::StdRng;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default, States)]
@@ -47,3 +48,6 @@ pub struct Game {
 
 #[derive(Resource, Deref, DerefMut)]
 pub struct Random(pub StdRng);
+
+#[derive(Resource, Deref, DerefMut)]
+pub struct GradientNoise(pub BasicMulti<Perlin>);
