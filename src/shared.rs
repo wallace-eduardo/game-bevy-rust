@@ -1,53 +1,42 @@
-use bevy::prelude::*;
-use noise::{BasicMulti, Perlin};
-use rand::rngs::StdRng;
+use bevy::{prelude::Resource, utils::HashSet};
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default, States)]
-pub enum GameState {
-    #[default]
-    Playing,
-    //Paused,
+use crate::*;
+
+#[derive(Resource)]
+pub struct GroundTiles(pub HashSet<(i32, i32)>);
+
+pub fn grid_to_world(x: f32, y: f32) -> (f32, f32) {
+    (
+        x * TILE_W as f32 * SPRITE_SCALE_FACTOR as f32,
+        y * TILE_H as f32 * SPRITE_SCALE_FACTOR as f32,
+    )
 }
 
-pub enum CellType {
-    Grass,
-    Water,
+pub fn world_to_grid(x: f32, y: f32) -> (f32, f32) {
+    (
+        (x / (TILE_W as f32 * SPRITE_SCALE_FACTOR as f32)).floor(),
+        (y / (TILE_H as f32 * SPRITE_SCALE_FACTOR as f32)).floor(),
+    )
 }
 
-pub struct Cell {
-    pub position: Vec3,
-    pub cell_type: CellType,
+pub fn center_to_top_left_grid(x: f32, y: f32) -> (f32, f32) {
+    let x_center = x + GRID_COLS as f32 / 2.0;
+    let y_center = GRID_ROWS as f32 / 2.0 - y;
+    (x_center, y_center)
 }
 
-impl Cell {
-    pub fn new(x: f32, y: f32, z: f32, noise: f32) -> Self {
-        Self {
-            position: Vec3::new(x, y, z),
-            cell_type: if noise < 0.0 {
-                CellType::Water
-            } else {
-                CellType::Grass
-            },
-        }
-    }
+pub fn center_to_top_left(x: f32, y: f32) -> (f32, f32) {
+    let x_center = x - (GRID_W as f32 * SPRITE_SCALE_FACTOR as f32) / 2.0;
+    let y_center = (GRID_H as f32 * SPRITE_SCALE_FACTOR as f32) / 2.0 - y;
+    (x_center, y_center)
 }
 
-#[derive(Default)]
-pub struct Player {
-    pub entity: Option<Entity>,
-    pub row: usize,
-    pub col: usize,
-    pub move_cooldown: Timer,
+pub fn grid_to_chunk(x: f32, y: f32) -> (i32, i32) {
+    let (x, y) = (x / CHUNK_W as f32, y / CHUNK_H as f32);
+    (x.floor() as i32, y.floor() as i32)
 }
 
-#[derive(Resource, Default)]
-pub struct Game {
-    pub board: Vec<Vec<Cell>>,
-    pub player: Player,
+pub fn world_to_chunk(x: f32, y: f32) -> (i32, i32) {
+    let (x, y) = world_to_grid(x, y);
+    grid_to_chunk(x, y)
 }
-
-#[derive(Resource, Deref, DerefMut)]
-pub struct Random(pub StdRng);
-
-#[derive(Resource, Deref, DerefMut)]
-pub struct GradientNoise(pub BasicMulti<Perlin>);

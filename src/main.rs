@@ -1,127 +1,57 @@
-use bevy::{
-    pbr::wireframe::WireframePlugin,
-    prelude::*,
-    render::{
-        settings::{RenderCreation, WgpuFeatures, WgpuSettings},
-        RenderPlugin,
-    },
-};
+use bevy::prelude::*;
 
 use game::{
-    atmosphere::AtmospherePlugin,
-    camera::CameraPlugin,
-    player::*,
-    shared::{Game, GameState},
-    show_fps::ShowFPSPlugin,
-    terrain::*,
+    camera::CameraPlugin, player::*, show_fps::ShowFPSPlugin, terrain::*, BG_COLOR, WH, WW,
 };
-
-// fn main() {
-//     App::new()
-
-//         .add_systems(Startup, (setup_cameras, setup_game))
-//         .add_systems(
-//             Update,
-//             (
-//                 move_player,
-//                 /*move_camera, camera_drag,*/ daylight_cycle,
-//                 pause,
-//             )
-//                 .run_if(in_state(GameState::Playing)),
-//         )
-//         .add_systems(Update, unpause.run_if(in_state(GameState::Paused)))
-//         .run();
-// }
 
 fn main() {
     App::new()
-        .init_resource::<Game>()
-        .add_plugins((
-            DefaultPlugins.set(RenderPlugin {
-                render_creation: RenderCreation::Automatic(WgpuSettings {
-                    // WARN this is a native only feature. It will not work with webgl or webgpu
-                    features: WgpuFeatures::POLYGON_MODE_LINE,
+        .add_plugins(
+            DefaultPlugins
+                .set(ImagePlugin::default_nearest())
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        mode: bevy::window::WindowMode::BorderlessFullscreen(
+                            MonitorSelection::Current,
+                        ),
+                        resolution: (WW as f32, WH as f32).into(),
+                        title: env!("CARGO_PKG_NAME").to_string(),
+                        ..default()
+                    }),
                     ..default()
                 }),
-                ..default()
-            }),
-            AtmospherePlugin,
-            ShowFPSPlugin,
-            TerrainPlugin,
-            PlayerPlugin,
-            CameraPlugin,
-            WireframePlugin,
-        ))
-        .init_state::<GameState>()
-        .add_systems(Startup, debug_system)
+        )
+        .insert_resource(ClearColor(Color::rgba_u8(
+            BG_COLOR.0, BG_COLOR.1, BG_COLOR.2, 0,
+        )))
+        .add_plugins((CameraPlugin, ShowFPSPlugin, TerrainPlugin, PlayerPlugin))
+        .add_systems(Update, (handle_settings_input, close_on_esc))
         .run();
 }
 
-// fn pause(mut next_state: ResMut<NextState<GameState>>, keyboard_input: Res<ButtonInput<KeyCode>>) {
-//     if keyboard_input.just_pressed(KeyCode::Escape) {
-//         next_state.set(GameState::Paused);
-//     }
-// }
-
-// fn unpause(
-//     mut next_state: ResMut<NextState<GameState>>,
-//     keyboard_input: Res<ButtonInput<KeyCode>>,
-// ) {
-//     if keyboard_input.just_pressed(KeyCode::Escape) {
-//         next_state.set(GameState::Playing);
-//     }
-// }
-
-fn debug_system(
+pub fn close_on_esc(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    focused_windows: Query<(Entity, &Window)>,
+    input: Res<ButtonInput<KeyCode>>,
 ) {
-    // Simple transform shape just for reference
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::default())),
-        MeshMaterial3d(materials.add(StandardMaterial::from(Color::srgb(0.8, 0.8, 0.8)))),
-    ));
+    for (window, focus) in focused_windows.iter() {
+        if !focus.focused {
+            continue;
+        }
 
-    // X axis
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(0.5, 0.5, 0.5))),
-        MeshMaterial3d(materials.add(StandardMaterial::from(Color::srgb(0.8, 0.0, 0.0)))),
-        Transform::from_xyz(1., 0., 0.),
-    ));
+        if input.just_pressed(KeyCode::Escape) {
+            commands.entity(window).despawn();
+        }
+    }
+}
 
-    // Y axis
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(0.5, 0.5, 0.5))),
-        MeshMaterial3d(materials.add(StandardMaterial::from(Color::srgb(0.0, 0.8, 0.0)))),
-        Transform::from_xyz(0., 1., 0.),
-    ));
+fn handle_settings_input(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut writer: EventWriter<ResetTerrainEvent>,
+) {
+    if !keys.just_pressed(KeyCode::KeyR) {
+        return;
+    }
 
-    // Z axis
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(0.5, 0.5, 0.5))),
-        MeshMaterial3d(materials.add(StandardMaterial::from(Color::srgb(0.0, 0.0, 0.8)))),
-        Transform::from_xyz(0., 0., 1.),
-    ));
-
-    // Help text
-    commands.spawn((
-        Text::new(format!(
-            "Press WASD to move the camera\n\
-                     Press E or Q to rotate the camera\n\
-                     Rotate the camera with right click\n\
-                     Drag pan with middle click\n\
-                     Arrow keys to move the player\n\
-                     Press X to toggle wireframe\n\
-                     Press C to toggle colors on terrain\n\
-                     Testing format:{:.2}",
-            1
-        )),
-        Node {
-            position_type: PositionType::Absolute,
-            top: Val::Px(5.0),
-            right: Val::Px(5.0),
-            ..default()
-        },
-    ));
+    writer.send(ResetTerrainEvent);
 }

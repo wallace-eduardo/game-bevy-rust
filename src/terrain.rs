@@ -1,141 +1,333 @@
 use crate::*;
+use bevy::math::{uvec2, vec3};
+use bevy::prelude::*;
+use bevy::time::common_conditions::on_timer;
+use bevy::utils::{HashMap, HashSet};
+use noise::{NoiseFn, Perlin};
+use player::{CurrentPlayerChunkPos, PlayerChunkUpdateEvent};
+use rand::Rng;
+use shared::*;
+use std::time::Duration;
 
-use bevy::{
-    color::palettes::tailwind::*, pbr::wireframe::Wireframe, prelude::*,
-    render::mesh::VertexAttributeValues,
-};
-use bevy_rts_camera::Ground;
-use noise::{BasicMulti, NoiseFn, Perlin};
-use rand::{rngs::StdRng, Rng, SeedableRng};
-use shared::{Cell, Game, Random};
+#[derive(Component)]
+struct TileComponent;
+#[derive(Resource)]
+struct CurrentChunks(HashMap<(i32, i32), Vec<Entity>>);
+#[derive(Resource)]
+struct GenerationSeed(u32);
+#[derive(Event)]
+pub struct ResetTerrainEvent;
+
+#[derive(Eq, PartialEq, Hash)]
+struct Tile {
+    pos: (i32, i32),
+    sprite: usize,
+    z_index: i32,
+}
 
 pub struct TerrainPlugin;
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, terrain_startup)
-            .add_systems(Update, toggle_wireframe);
+        let mut rng = rand::thread_rng();
+        app.insert_resource(GroundTiles(HashSet::new()))
+            .insert_resource(CurrentChunks(HashMap::new()))
+            .insert_resource(GenerationSeed(rng.gen()))
+            .add_systems(Update, handle_terrain_reset_event)
+            .add_systems(Update, despawn_chunks)
+            .add_systems(
+                Update,
+                clean_ground_tiles.run_if(on_timer(Duration::from_secs_f32(2.0))),
+            )
+            .add_systems(Update, handle_player_chunk_update_event)
+            .add_event::<ResetTerrainEvent>();
     }
 }
 
-#[derive(Component)]
-pub struct WireframeTerrain;
+fn handle_terrain_reset_event(
+    mut commands: Commands,
+    mut reader: EventReader<ResetTerrainEvent>,
+    mut ev_writer: EventWriter<PlayerChunkUpdateEvent>,
+    player_pos: Res<CurrentPlayerChunkPos>,
+    mut chunks: ResMut<CurrentChunks>,
+    mut ground_tiles: ResMut<GroundTiles>,
+    mut seed: ResMut<GenerationSeed>,
+    tile_q: Query<Entity, With<TileComponent>>,
+) {
+    if reader.is_empty() {
+        return;
+    }
 
-const PERLIN_NOISE_SCALE: f64 = 1.0 / 300.0;
-const TERRAIN_HEIGHT: f32 = 70.;
+    reader.clear();
+    for t in tile_q.iter() {
+        commands.entity(t).despawn();
+    }
 
-pub fn terrain_startup(
+    // Reset res
+    chunks.0.clear();
+    ground_tiles.0.clear();
+
+    let mut rng = rand::thread_rng();
+    seed.0 = rng.gen();
+
+    // Trigger world re-generation
+    let (x, y) = player_pos.0;
+    ev_writer.send(PlayerChunkUpdateEvent((x, y)));
+}
+
+fn clean_ground_tiles(
+    player_pos: Res<CurrentPlayerChunkPos>,
+    mut ground_tiles: ResMut<GroundTiles>,
+) {
+    let (x, y) = player_pos.0;
+    ground_tiles.0.retain(|pos| {
+        let (px, py) = grid_to_chunk(pos.0 as f32, pos.1 as f32);
+        px.abs_diff(x) <= 1 || py.abs_diff(y) <= 1
+    });
+}
+
+fn despawn_chunks(
+    mut commands: Commands,
+    mut current_chunks: ResMut<CurrentChunks>,
+    player_pos: Res<CurrentPlayerChunkPos>,
+) {
+    let mut keys_to_remove = Vec::new();
+    let (x, y) = player_pos.0;
+
+    for ((cx, cy), entities) in current_chunks.0.iter() {
+        if cx.abs_diff(x) <= 1 && cy.abs_diff(y) <= 1 {
+            continue;
+        }
+
+        for e in entities.iter() {
+            commands.entity(*e).despawn();
+        }
+        keys_to_remove.push((*cx, *cy));
+    }
+
+    for (cx, cy) in keys_to_remove {
+        current_chunks.0.remove(&(cx, cy));
+    }
+}
+
+fn handle_player_chunk_update_event(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut game: ResMut<Game>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    seed: Res<GenerationSeed>,
+    mut current_chunks: ResMut<CurrentChunks>,
+    mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
+    mut ev_chunk_update: EventReader<PlayerChunkUpdateEvent>,
+    mut ground_tiles: ResMut<GroundTiles>,
 ) {
-    let mut rng = if std::env::var("GITHUB_ACTIONS") == Ok("true".to_string()) {
-        // Make the game play out the same way every time, this is useful for testing purposes.
-        StdRng::seed_from_u64(19878367467713)
-    } else {
-        StdRng::from_entropy()
-    };
+    if ev_chunk_update.is_empty() {
+        return;
+    }
 
-    let perlin = BasicMulti::<Perlin>::new(rng.gen());
-
-    ////////////////////////////////////////////////// grid terrain///////////////////////////////////////////////////
-    // spawn the game board
-    let cell_scene =
-        asset_server.load(GltfAssetLabel::Scene(0).from_asset("Nature (Kenney)/ground_grass.glb"));
-    game.board = (0..BOARD_SIZE_ROWS)
-        .map(|i| {
-            (0..BOARD_SIZE_COLS)
-                .map(|j| {
-                    let perlin_noise = perlin
-                        .get([i as f64 * PERLIN_NOISE_SCALE, j as f64 * PERLIN_NOISE_SCALE])
-                        as f32;
-                    let random_height_jitter = rng.gen_range(-0.1..0.1);
-                    let cell = Cell::new(i as f32, random_height_jitter, j as f32, perlin_noise);
-                    commands.spawn((
-                        Transform::from_translation(cell.position),
-                        SceneRoot(cell_scene.clone()),
-                        Ground,
-                    ));
-                    cell
-                })
-                .collect()
-        })
-        .collect();
-    ////////////////////////////////////////////// mesh terrain/////////////////////////////////////////////////////////
-    commands.insert_resource(Random(rng));
-
-    let mut terrain = Mesh::from(
-        Plane3d::default()
-            .mesh()
-            .size(1000.0, 1000.0)
-            .subdivisions(200),
+    let texture_handle: Handle<Image> = asset_server.load(SPRITE_SHEET_PATH);
+    let texture_atlas = TextureAtlasLayout::from_grid(
+        uvec2(TILE_W as u32, TILE_H as u32),
+        SPRITE_SHEET_W as u32,
+        SPRITE_SHEET_H as u32,
+        Some(UVec2::splat(SPRITE_PADDING)),
+        Some(UVec2::splat(SPRITE_SHEET_OFFSET)),
     );
+    let handle = texture_atlases.add(texture_atlas);
 
-    if let Some(VertexAttributeValues::Float32x3(positions)) =
-        terrain.attribute_mut(Mesh::ATTRIBUTE_POSITION)
-    {
-        for pos in positions.iter_mut() {
-            let val = perlin.get([
-                pos[0] as f64 * PERLIN_NOISE_SCALE,
-                pos[2] as f64 * PERLIN_NOISE_SCALE,
-            ]);
+    for new_chunk_pos in ev_chunk_update.read() {
+        let (x, y) = new_chunk_pos.0;
 
-            pos[1] = val as f32 * TERRAIN_HEIGHT;
+        let chunk_neighbors = [
+            (-1, 0),
+            (1, 0),
+            (0, -1),
+            (0, 1),
+            (-1, 1),
+            (1, 1),
+            (-1, -1),
+            (1, -1),
+            (0, 0),
+        ];
+        let mut tiles = HashSet::new();
+        let mut ground_map = HashSet::new();
+
+        for (i, j) in chunk_neighbors.iter() {
+            let (x, y) = (x + *i, y + *j);
+            if current_chunks.0.contains_key(&(x, y)) {
+                continue;
+            }
+
+            let start = (x * CHUNK_W as i32, y * CHUNK_H as i32);
+            let (chunk_tiles, chunk_ground_map) = gen_chunk(seed.0, (start.0, start.1));
+            tiles.extend(chunk_tiles);
+            ground_map.extend(chunk_ground_map);
         }
 
-        let colors: Vec<[f32; 4]> = positions
-            .iter()
-            .map(|[_, g, _]| {
-                let g = *g / TERRAIN_HEIGHT * 2.;
+        let mut updated_ground_map = HashSet::new();
+        for (x, y) in ground_map.iter() {
+            let (num_nei, tile) = process_tile((*x, *y), &ground_map);
+            if num_nei == 1 {
+                continue;
+            }
 
-                if g > 0.8 {
-                    (Color::LinearRgba(LinearRgba {
-                        red: 20.,
-                        green: 20.,
-                        blue: 20.,
-                        alpha: 1.,
-                    }))
-                    .to_linear()
-                    .to_f32_array()
-                } else if g > 0.3 {
-                    Color::from(AMBER_800).to_linear().to_f32_array()
-                } else if g < -0.8 {
-                    Color::BLACK.to_linear().to_f32_array()
-                } else {
-                    (Color::from(GREEN_400).to_linear()).to_f32_array()
-                }
-            })
-            .collect();
-        terrain.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
+            // Ignore edges
+            // This will help in better player visualization when going from land to water
+            updated_ground_map.insert((*x, *y));
+            tiles.insert(Tile::new((*x, *y), tile, 0));
+        }
+        ground_tiles.0.extend(updated_ground_map);
+
+        for t in tiles.iter() {
+            let (cx, cy) = grid_to_chunk(t.pos.0 as f32, t.pos.1 as f32);
+            let (x, y) = grid_to_world(t.pos.0 as f32, t.pos.1 as f32);
+            let (x, y) = center_to_top_left(x, y);
+
+            let e = commands
+                .spawn((
+                    Sprite::from_atlas_image(
+                        texture_handle.clone(),
+                        TextureAtlas {
+                            layout: handle.clone(),
+                            index: t.sprite,
+                        },
+                    ),
+                    Transform::from_scale(Vec3::splat(SPRITE_SCALE_FACTOR as f32))
+                        .with_translation(vec3(x, y, t.z_index as f32)),
+                    TileComponent,
+                ))
+                .id();
+
+            current_chunks
+                .0
+                .entry((cx, cy))
+                .or_insert_with(Vec::new)
+                .push(e);
+        }
     }
-    terrain.compute_normals();
-    commands.spawn((
-        Mesh3d(meshes.add(terrain)),
-        MeshMaterial3d(materials.add(Color::LinearRgba(LinearRgba {
-            red: 1.,
-            green: 1.,
-            blue: 1.,
-            alpha: 0.0, // Change alpha to make visible
-        }))),
-        WireframeTerrain,
-        Ground,
-    ));
 }
 
-fn toggle_wireframe(
-    mut commands: Commands,
-    landscapes_wireframes: Query<Entity, (With<WireframeTerrain>, With<Wireframe>)>,
-    landscapes: Query<Entity, (With<WireframeTerrain>, Without<Wireframe>)>,
-    input: Res<ButtonInput<KeyCode>>,
-) {
-    if input.just_pressed(KeyCode::KeyX) {
-        for terrain in &landscapes {
-            commands.entity(terrain).insert(Wireframe);
+fn gen_chunk(gen_seed: u32, start: (i32, i32)) -> (HashSet<Tile>, HashSet<(i32, i32)>) {
+    let mut rng = rand::thread_rng();
+    let noise = Perlin::new(gen_seed);
+
+    let mut tiles = HashSet::new();
+    let mut ground_map = HashSet::new();
+    let end = (start.0 + CHUNK_W as i32, start.1 + CHUNK_H as i32);
+    for x in start.0 - 1..end.0 + 1 {
+        for y in start.1 - 1..end.1 + 1 {
+            let noise_val1 = noise.get([x as f64 / 100.5, y as f64 / 100.5]);
+            let noise_val2 = noise.get([x as f64 / 53.5, y as f64 / 53.5]);
+            let noise_val3 = noise.get([x as f64 / 43.5, y as f64 / 43.5]);
+            let noise_val4 = noise.get([x as f64 / 23.5, y as f64 / 23.5]);
+            let noise_val = (noise_val1 + noise_val2 + noise_val3 + noise_val4) / 4.0;
+            let chance = rng.gen_range(0.0..1.0);
+
+            // Ground
+            if noise_val > 0.0 {
+                ground_map.insert((x, y));
+            } else {
+                continue;
+            }
+
+            // Too close to shore
+            if noise_val < 0.05 {
+                continue;
+            }
+
+            // Dense Forest
+            if (noise_val > 0.5 || noise_val3 > 0.98) && chance > 0.2 {
+                tiles.insert(Tile::new((x, y), 27, 5));
+                continue;
+            }
+            // Patch Forest
+            if noise_val3 > 0.5 && noise_val < 0.5 && chance > 0.4 {
+                let chance2 = rng.gen_range(0.0..1.0);
+                let tile = if chance2 > 0.7 {
+                    rng.gen_range(24..=26)
+                } else {
+                    rng.gen_range(24..=25)
+                };
+                tiles.insert(Tile::new((x, y), tile, 3));
+                continue;
+            }
+            // Sparse Forest
+            if noise_val4 > 0.4 && noise_val < 0.5 && noise_val3 < 0.5 && chance > 0.9 {
+                let chance = rng.gen_range(0.0..1.0);
+                let tile = if chance > 0.78 {
+                    rng.gen_range(28..=29)
+                } else {
+                    rng.gen_range(24..=25)
+                };
+                tiles.insert(Tile::new((x, y), tile, 3));
+                continue;
+            }
+
+            // Bones
+            if noise_val > 0.3 && noise_val < 0.5 && noise_val3 < 0.5 && chance > 0.98 {
+                let tile = rng.gen_range(40..=43);
+                tiles.insert(Tile::new((x, y), tile, 1));
+                continue;
+            }
+
+            // Settlements
+            if noise_val > 0.1 && noise_val < 0.3 && noise_val3 < 0.4 && chance > 0.8 {
+                let chance2 = rng.gen_range(0.0..1.0);
+
+                if chance2 > 0.98 {
+                    let chance3 = rng.gen_range(0.0..1.0);
+                    let tile = if chance3 > 0.75 {
+                        rng.gen_range(18..=19)
+                    } else {
+                        rng.gen_range(16..=17)
+                    };
+                    tiles.insert(Tile::new((x, y), tile, 8));
+                } else {
+                    if noise_val > 0.2 && noise_val < 0.3 && noise_val3 < 0.3 && chance > 0.9 {
+                        tiles.insert(Tile::new((x, y), 32, 1));
+                    }
+                }
+
+                continue;
+            }
+
+            // Color Check
+            // if noise_val > 0.1 && noise_val4 < 0.5 {
+            //     tiles.insert(Tile::new((x, y), 64, 1));
+            //     continue;
+            // }
         }
-        for terrain in &landscapes_wireframes {
-            commands.entity(terrain).remove::<Wireframe>();
+    }
+
+    (tiles, ground_map)
+}
+
+fn process_tile((x, y): (i32, i32), occupied: &HashSet<(i32, i32)>) -> (i32, usize) {
+    let nei_options = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+    let mut nei = [1, 1, 1, 1];
+    let mut nei_count = 4;
+    for (idx, (i, j)) in nei_options.iter().enumerate() {
+        if !occupied.contains(&(x + i, y + j)) {
+            nei[idx] = 0;
+            nei_count -= 1;
+        }
+    }
+
+    let tile = match nei {
+        [0, 1, 1, 0] => 3,
+        [1, 0, 1, 0] => 4,
+        [0, 1, 0, 1] => 1,
+        [1, 0, 0, 1] => 2,
+        _ => 0,
+    };
+
+    (nei_count, tile)
+}
+
+impl Tile {
+    fn new(pos: (i32, i32), sprite: usize, z_index: i32) -> Self {
+        Self {
+            pos,
+            sprite,
+            z_index,
         }
     }
 }
