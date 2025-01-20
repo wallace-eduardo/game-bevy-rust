@@ -3,28 +3,35 @@ use bevy::{math::*, prelude::*, utils::Instant};
 
 pub struct PlayerPlugin;
 
-// #[derive(Component)]
-// struct WalkTrail(Instant);
+#[derive(Component)]
+struct WalkTrail(Instant);
 #[derive(Component)]
 struct Player;
 #[derive(Resource)]
 struct PlayerSpriteIndex(usize);
 #[derive(Component, Deref, DerefMut)]
 struct AnimationTimer(Timer);
-// #[derive(Resource)]
-// struct TextureAtlasHandle();
 #[derive(Resource, Default)]
 struct CurrentPlayerState(PlayerState);
 #[derive(Resource)]
 struct PlayerDirection(f32);
-// #[derive(Resource)]
-// struct WalkTrailTimer(Timer);
-// #[derive(Resource)]
-// struct DefaultAtlasHandle(pub Option<Handle<TextureAtlasLayout>>);
+#[derive(Resource)]
+struct WalkTrailTimer(Timer);
+#[derive(Resource)]
+struct DefaultAtlasHandle(pub Option<Handle<TextureAtlasLayout>>);
 #[derive(Resource, Default)]
 pub struct CurrentPlayerChunkPos(pub (i32, i32));
 #[derive(Event)]
 pub struct PlayerChunkUpdateEvent(pub (i32, i32));
+#[derive(Resource)]
+struct DefaultSpriteSheet(pub Option<Handle<Image>>);
+
+pub const PLAYER_SPEED: f32 = 1.0;
+pub const PLAYER_FISH_SPEED: f32 = 1.5;
+pub const PLAYER_ANIMATION_INTERVAL: f32 = 0.3;
+pub const WALK_TRAIL_TIMER: f32 = 1.2;
+pub const TRAIL_LIFE_SPAN: f32 = 5.0;
+pub const PLAYER_JUMP_TIME: f32 = 0.3;
 
 // TODO make this a state
 #[derive(Default, PartialEq, Debug)]
@@ -42,29 +49,33 @@ impl Plugin for PlayerPlugin {
             .insert_resource(PlayerDirection(0.0))
             .insert_resource(CurrentPlayerState::default())
             .insert_resource(CurrentPlayerChunkPos::default())
-            // .insert_resource(WalkTrailTimer(Timer::from_seconds(
-            //     WALK_TRAIL_TIMER,
-            //     TimerMode::Repeating,
-            // )))
-            //.insert_resource(DefaultAtlasHandle(None))
+            .insert_resource(WalkTrailTimer(Timer::from_seconds(
+                WALK_TRAIL_TIMER,
+                TimerMode::Repeating,
+            )))
+            .insert_resource(DefaultAtlasHandle(None))
+            .insert_resource(DefaultSpriteSheet(None))
             .add_event::<PlayerChunkUpdateEvent>()
             .add_systems(Startup, setup)
             .add_systems(Update, update_player_state)
             .add_systems(Update, camera_follow_player)
             .add_systems(Update, handle_player_input)
-            //.add_systems(Update, spawn_walk_trail)
+            .add_systems(Update, spawn_walk_trail)
             .add_systems(Update, update_player_chunk_pos)
-            //.add_systems(Update, clean_old_walk_trails)
+            .add_systems(Update, clean_old_walk_trails)
             .add_systems(Update, update_player_sprite);
     }
 }
 
 fn setup(
     mut commands: Commands,
+    mut handle: ResMut<DefaultAtlasHandle>,
+    mut sheet: ResMut<DefaultSpriteSheet>,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     let texture_handle: Handle<Image> = asset_server.load(SPRITE_SHEET_PATH);
+    sheet.0 = Some(texture_handle);
     let texture_atlas = TextureAtlasLayout::from_grid(
         uvec2(TILE_W as u32, TILE_H as u32),
         SPRITE_SHEET_W as u32,
@@ -73,12 +84,13 @@ fn setup(
         Some(UVec2::splat(SPRITE_SHEET_OFFSET)),
     );
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
+    handle.0 = Some(texture_atlas_handle);
 
     commands.spawn((
         Sprite::from_atlas_image(
-            texture_handle,
+            sheet.0.clone().unwrap(),
             TextureAtlas {
-                layout: texture_atlas_handle,
+                layout: handle.0.clone().unwrap(),
                 index: PLAYER_SPRITE_INDEX,
             },
         ),
@@ -255,48 +267,55 @@ fn handle_player_input(
     }
 }
 
-// fn spawn_walk_trail(
-//     time: Res<Time>,
-//     mut commands: Commands,
-//     player_state: Res<CurrentPlayerState>,
-//     player_angle: Res<PlayerDirection>,
-//     image_handle: Res<DefaultAtlasHandle>,
-//     mut timer: ResMut<WalkTrailTimer>,
-//     mut player_query: Query<&Transform, With<Player>>,
-// ) {
-//     timer.0.tick(time.delta());
-//     if player_query.is_empty() {
-//         return;
-//     }
+fn spawn_walk_trail(
+    time: Res<Time>,
+    mut commands: Commands,
+    player_state: Res<CurrentPlayerState>,
+    player_angle: Res<PlayerDirection>,
+    image_handle: Res<DefaultAtlasHandle>,
+    sheet: ResMut<DefaultSpriteSheet>,
+    mut timer: ResMut<WalkTrailTimer>,
+    mut player_query: Query<&Transform, With<Player>>,
+) {
+    timer.0.tick(time.delta());
+    if player_query.is_empty() {
+        return;
+    }
 
-//     if !timer.0.finished() || !player_state.is_walk() {
-//         return;
-//     }
+    if !timer.0.finished() || !player_state.is_walk() {
+        return;
+    }
 
-//     let transform = player_query.single_mut();
-//     commands.spawn((
-//         Sprite::from_atlas_image(, TextureAtlas{ layout: image_handle, index: 50usize}),
-//         Transform::from_scale(Vec3::splat(SPRITE_SCALE_FACTOR as f32 - 1.0))
-//             .with_translation(vec3(transform.translation.x, transform.translation.y, 1.0))
-//             .with_rotation(Quat::from_rotation_z(player_angle.0)),
-//         WalkTrail(Instant::now()),
-//     ));
-// }
+    let transform = player_query.single_mut();
+    commands.spawn((
+        Sprite::from_atlas_image(
+            sheet.0.clone().unwrap(),
+            TextureAtlas {
+                layout: image_handle.0.clone().unwrap(),
+                index: 50usize,
+            },
+        ),
+        Transform::from_scale(Vec3::splat(SPRITE_SCALE_FACTOR as f32 - 1.0))
+            .with_translation(vec3(transform.translation.x, transform.translation.y, 1.0))
+            .with_rotation(Quat::from_rotation_z(player_angle.0)),
+        WalkTrail(Instant::now()),
+    ));
+}
 
-// fn clean_old_walk_trails(
-//     mut commands: Commands,
-//     query: Query<(Entity, &WalkTrail), With<WalkTrail>>,
-// ) {
-//     if query.is_empty() {
-//         return;
-//     }
+fn clean_old_walk_trails(
+    mut commands: Commands,
+    query: Query<(Entity, &WalkTrail), With<WalkTrail>>,
+) {
+    if query.is_empty() {
+        return;
+    }
 
-//     for (entity, trail) in query.iter() {
-//         if trail.0.elapsed().as_secs_f32() > TRAIL_LIFE_SPAN {
-//             commands.entity(entity).despawn();
-//         }
-//     }
-// }
+    for (entity, trail) in query.iter() {
+        if trail.0.elapsed().as_secs_f32() > TRAIL_LIFE_SPAN {
+            commands.entity(entity).despawn();
+        }
+    }
+}
 
 fn camera_follow_player(
     mut cam_query: Query<(&Camera, &mut Transform), Without<Player>>,
@@ -317,7 +336,6 @@ fn camera_follow_player(
         ),
         0.05,
     );
-    // cam_transform.translation = player_transform.translation;
 }
 
 impl CurrentPlayerState {

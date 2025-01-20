@@ -19,13 +19,5 @@ pub const WH: usize = 1080;
 pub const BG_COLOR: (u8, u8, u8) = (181, 212, 220);
 
 // Chunk
-pub const CHUNK_W: usize = 20;
-pub const CHUNK_H: usize = 60;
-
-// Player
-pub const PLAYER_SPEED: f32 = 1.0;
-pub const PLAYER_FISH_SPEED: f32 = 1.5;
-pub const PLAYER_ANIMATION_INTERVAL: f32 = 0.3;
-pub const WALK_TRAIL_TIMER: f32 = 1.2;
-pub const TRAIL_LIFE_SPAN: f32 = 5.0;
-pub const PLAYER_JUMP_TIME: f32 = 0.3;
+pub const CHUNK_W: usize = 200;
+pub const CHUNK_H: usize = 100;

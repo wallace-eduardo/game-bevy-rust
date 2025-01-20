@@ -12,7 +12,7 @@ fn main() {
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         mode: bevy::window::WindowMode::BorderlessFullscreen(
-                            MonitorSelection::Current,
+                            MonitorSelection::Primary,
                         ),
                         resolution: (WW as f32, WH as f32).into(),
                         title: env!("CARGO_PKG_NAME").to_string(),
@@ -21,7 +21,7 @@ fn main() {
                     ..default()
                 }),
         )
-        .insert_resource(ClearColor(Color::rgba_u8(
+        .insert_resource(ClearColor(Color::srgba_u8(
             BG_COLOR.0, BG_COLOR.1, BG_COLOR.2, 0,
         )))
         .add_plugins((CameraPlugin, ShowFPSPlugin, TerrainPlugin, PlayerPlugin))

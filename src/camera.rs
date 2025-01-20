@@ -5,7 +5,7 @@ fn camera_setup(mut commands: Commands) {
     commands.spawn((
         Camera2d,
         PanCam {
-            grab_buttons: vec![MouseButton::Left, MouseButton::Middle],
+            grab_buttons: vec![MouseButton::Middle],
             enabled: true,
             zoom_to_cursor: true,
             min_scale: 0.01,

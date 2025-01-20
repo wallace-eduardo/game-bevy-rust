@@ -1,12 +1,13 @@
 use crate::*;
-use bevy::math::{uvec2, vec3};
-use bevy::prelude::*;
-use bevy::time::common_conditions::on_timer;
-use bevy::utils::{HashMap, HashSet};
+use bevy::{
+    math::{uvec2, vec3},
+    prelude::*,
+    time::common_conditions::on_timer,
+    utils::{HashMap, HashSet},
+};
 use noise::{NoiseFn, Perlin};
 use player::{CurrentPlayerChunkPos, PlayerChunkUpdateEvent};
 use rand::Rng;
-use shared::*;
 use std::time::Duration;
 
 #[derive(Component)]
