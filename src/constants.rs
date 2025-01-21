@@ -14,8 +14,8 @@ pub const GRID_COLS: usize = 1000;
 pub const GRID_ROWS: usize = 800;
 pub const GRID_W: usize = GRID_COLS * TILE_W;
 pub const GRID_H: usize = GRID_ROWS * TILE_H;
-pub const WW: usize = 1920;
-pub const WH: usize = 1080;
+pub const WINDOW_W: usize = 1920;
+pub const WINDOW_H: usize = 1080;
 pub const BG_COLOR: (u8, u8, u8) = (181, 212, 220);
 
 // Chunk

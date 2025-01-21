@@ -6,7 +6,7 @@ use bevy::{
     utils::{HashMap, HashSet},
 };
 use noise::{NoiseFn, Perlin};
-use player::{CurrentPlayerChunkPos, PlayerChunkUpdateEvent};
+use player::{CurrentPlayerChunkPosition, PlayerChunkUpdateEvent};
 use rand::Rng;
 use std::time::Duration;
 
@@ -49,7 +49,7 @@ fn handle_terrain_reset_event(
     mut commands: Commands,
     mut reader: EventReader<ResetTerrainEvent>,
     mut ev_writer: EventWriter<PlayerChunkUpdateEvent>,
-    player_pos: Res<CurrentPlayerChunkPos>,
+    player_pos: Res<CurrentPlayerChunkPosition>,
     mut chunks: ResMut<CurrentChunks>,
     mut ground_tiles: ResMut<GroundTiles>,
     mut seed: ResMut<GenerationSeed>,
@@ -77,7 +77,7 @@ fn handle_terrain_reset_event(
 }
 
 fn clean_ground_tiles(
-    player_pos: Res<CurrentPlayerChunkPos>,
+    player_pos: Res<CurrentPlayerChunkPosition>,
     mut ground_tiles: ResMut<GroundTiles>,
 ) {
     let (x, y) = player_pos.0;
@@ -90,7 +90,7 @@ fn clean_ground_tiles(
 fn despawn_chunks(
     mut commands: Commands,
     mut current_chunks: ResMut<CurrentChunks>,
-    player_pos: Res<CurrentPlayerChunkPos>,
+    player_pos: Res<CurrentPlayerChunkPosition>,
 ) {
     let mut keys_to_remove = Vec::new();
     let (x, y) = player_pos.0;
@@ -259,13 +259,6 @@ fn gen_chunk(gen_seed: u32, start: (i32, i32)) -> (HashSet<Tile>, HashSet<(i32, 
                     rng.gen_range(24..=25)
                 };
                 tiles.insert(Tile::new((x, y), tile, 3));
-                continue;
-            }
-
-            // Bones
-            if noise_val > 0.3 && noise_val < 0.5 && noise_val3 < 0.5 && chance > 0.98 {
-                let tile = rng.gen_range(40..=43);
-                tiles.insert(Tile::new((x, y), tile, 1));
                 continue;
             }
 

@@ -12,15 +12,13 @@ struct PlayerSpriteIndex(usize);
 #[derive(Component, Deref, DerefMut)]
 struct AnimationTimer(Timer);
 #[derive(Resource, Default)]
-struct CurrentPlayerState(PlayerState);
-#[derive(Resource)]
 struct PlayerDirection(f32);
 #[derive(Resource)]
 struct WalkTrailTimer(Timer);
 #[derive(Resource)]
 struct DefaultAtlasHandle(pub Option<Handle<TextureAtlasLayout>>);
 #[derive(Resource, Default)]
-pub struct CurrentPlayerChunkPos(pub (i32, i32));
+pub struct CurrentPlayerChunkPosition(pub (i32, i32));
 #[derive(Event)]
 pub struct PlayerChunkUpdateEvent(pub (i32, i32));
 #[derive(Resource)]
@@ -33,8 +31,7 @@ pub const WALK_TRAIL_TIMER: f32 = 1.2;
 pub const TRAIL_LIFE_SPAN: f32 = 5.0;
 pub const PLAYER_JUMP_TIME: f32 = 0.3;
 
-// TODO make this a state
-#[derive(Default, PartialEq, Debug)]
+#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
 enum PlayerState {
     #[default]
     Idle,
@@ -43,12 +40,37 @@ enum PlayerState {
     Swim,
 }
 
+impl PlayerState {
+    fn on_land(&self) -> bool {
+        match self {
+            PlayerState::Idle => true,
+            PlayerState::Walk => true,
+            _ => false,
+        }
+    }
+
+    fn walking(&self) -> bool {
+        *self == PlayerState::Walk
+    }
+
+    fn swimming(&self) -> bool {
+        *self == PlayerState::Swim
+    }
+
+    fn jumping(&self) -> bool {
+        match self {
+            PlayerState::Jump(_) => true,
+            _ => false,
+        }
+    }
+}
+
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(PlayerSpriteIndex(0))
+        app.init_state::<PlayerState>()
+            .insert_resource(PlayerSpriteIndex(0))
             .insert_resource(PlayerDirection(0.0))
-            .insert_resource(CurrentPlayerState::default())
-            .insert_resource(CurrentPlayerChunkPos::default())
+            .insert_resource(CurrentPlayerChunkPosition::default())
             .insert_resource(WalkTrailTimer(Timer::from_seconds(
                 WALK_TRAIL_TIMER,
                 TimerMode::Repeating,
@@ -63,7 +85,11 @@ impl Plugin for PlayerPlugin {
             .add_systems(Update, spawn_walk_trail)
             .add_systems(Update, update_player_chunk_pos)
             .add_systems(Update, clean_old_walk_trails)
-            .add_systems(Update, update_player_sprite);
+            .add_systems(Update, update_player_sprite)
+            .add_systems(
+                Update,
+                finish_jump.run_if(|state: Res<State<PlayerState>>| state.jumping()),
+            );
     }
 }
 
@@ -105,8 +131,8 @@ fn setup(
 }
 
 fn update_player_state(
-    mut player_state: ResMut<CurrentPlayerState>,
-    mut sprite_index: ResMut<PlayerSpriteIndex>,
+    player_state: Res<State<PlayerState>>,
+    mut next_player_state: ResMut<NextState<PlayerState>>,
     ground_tiles: Res<GroundTiles>,
     mut player_query: Query<&Transform, With<Player>>,
 ) {
@@ -120,21 +146,35 @@ fn update_player_state(
     let (x, y) = center_to_top_left_grid(x, y);
     let is_ground = ground_tiles.0.contains(&(x as i32, y as i32));
 
-    if !is_ground && player_state.is_land() {
-        player_state.0 = PlayerState::Jump(Instant::now());
+    if !is_ground && player_state.on_land() {
+        next_player_state.set(PlayerState::Jump(Instant::now()));
     }
-    if is_ground && player_state.0 == PlayerState::Swim {
-        player_state.0 = PlayerState::Jump(Instant::now());
+    if is_ground && player_state.swimming() {
+        next_player_state.set(PlayerState::Jump(Instant::now()));
     }
+}
 
-    match player_state.0 {
+fn finish_jump(
+    mut player_query: Query<&Transform, With<Player>>,
+    player_state: Res<State<PlayerState>>,
+    mut next_player_state: ResMut<NextState<PlayerState>>,
+    mut sprite_index: ResMut<PlayerSpriteIndex>,
+    ground_tiles: Res<GroundTiles>,
+) {
+    let transform = player_query.single_mut();
+    let (x, y) = (transform.translation.x, transform.translation.y);
+    let (x, y) = world_to_grid(x, y);
+    let (x, y) = center_to_top_left_grid(x, y);
+    let is_ground = ground_tiles.0.contains(&(x as i32, y as i32));
+
+    match player_state.get() {
         PlayerState::Jump(jumped_at) => {
             if jumped_at.elapsed().as_secs_f32() > PLAYER_JUMP_TIME {
-                player_state.0 = if is_ground {
+                next_player_state.set(if is_ground {
                     PlayerState::Idle
                 } else {
                     PlayerState::Swim
-                };
+                });
                 sprite_index.0 = 0;
             }
         }
@@ -145,7 +185,7 @@ fn update_player_state(
 fn update_player_sprite(
     time: Res<Time>,
     mut sprite_index: ResMut<PlayerSpriteIndex>,
-    player_state: Res<CurrentPlayerState>,
+    player_state: Res<State<PlayerState>>,
     mut query: Query<(&mut Sprite, &mut AnimationTimer), With<Player>>,
 ) {
     if query.is_empty() {
@@ -155,16 +195,16 @@ fn update_player_sprite(
     let (mut sprite, mut timer) = query.single_mut();
     timer.tick(time.delta());
 
-    if player_state.is_walk() && timer.finished() {
+    if player_state.walking() && timer.finished() {
         sprite_index.0 = (sprite_index.0 + 1) % 3;
     }
-    if player_state.is_jump() && timer.finished() {
+    if player_state.jumping() && timer.finished() {
         sprite_index.0 = (sprite_index.0 + 1) % 3;
     }
 
-    sprite.texture_atlas.as_mut().unwrap().index = if player_state.is_land() {
+    sprite.texture_atlas.as_mut().unwrap().index = if player_state.on_land() {
         sprite_index.0 + PLAYER_SPRITE_INDEX
-    } else if player_state.is_jump() {
+    } else if player_state.jumping() {
         sprite_index.0 + PLAYER_SPRITE_INDEX + 3
     } else {
         49
@@ -172,8 +212,8 @@ fn update_player_sprite(
 }
 
 fn update_player_chunk_pos(
-    mut chunk_pos: ResMut<CurrentPlayerChunkPos>,
-    mut ev_chunk_update: EventWriter<PlayerChunkUpdateEvent>,
+    mut chunk_position: ResMut<CurrentPlayerChunkPosition>,
+    mut chunk_update_event: EventWriter<PlayerChunkUpdateEvent>,
     player_query: Query<&Transform, With<Player>>,
 ) {
     if player_query.is_empty() {
@@ -186,17 +226,18 @@ fn update_player_chunk_pos(
     let (a, b) = center_to_top_left_grid(a, b);
     let (x, y) = grid_to_chunk(a, b);
 
-    let (old_x, old_y) = chunk_pos.0;
+    let (old_x, old_y) = chunk_position.0;
     if old_x == x && old_y == y {
         return;
     }
 
-    ev_chunk_update.send(PlayerChunkUpdateEvent((x, y)));
-    chunk_pos.0 = (x, y);
+    chunk_update_event.send(PlayerChunkUpdateEvent((x, y)));
+    chunk_position.0 = (x, y);
 }
 
 fn handle_player_input(
-    mut player_state: ResMut<CurrentPlayerState>,
+    player_state: Res<State<PlayerState>>,
+    mut next_player_state: ResMut<NextState<PlayerState>>,
     mut player_direction: ResMut<PlayerDirection>,
     mut player_query: Query<&mut Transform, With<Player>>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -204,7 +245,7 @@ fn handle_player_input(
     if player_query.is_empty() {
         return;
     }
-    if player_state.is_jump() {
+    if player_state.jumping() {
         return;
     }
 
@@ -235,12 +276,12 @@ fn handle_player_input(
 
     if w_key || s_key || a_key || d_key {
         let player_angle = direction.y.atan2(direction.x);
-        let sprite_angle = if player_state.is_land() {
+        let sprite_angle = if player_state.on_land() {
             0.0
         } else {
             player_angle
         };
-        let speed = if player_state.is_land() {
+        let speed = if player_state.on_land() {
             PLAYER_SPEED
         } else {
             PLAYER_FISH_SPEED
@@ -253,24 +294,24 @@ fn handle_player_input(
 
         transform.rotation = Quat::from_rotation_z(sprite_angle);
         player_direction.0 = player_angle;
-        player_state.0 = if player_state.is_land() {
+        next_player_state.set(if player_state.on_land() {
             PlayerState::Walk
         } else {
             PlayerState::Swim
-        };
+        });
     } else {
-        player_state.0 = if player_state.is_land() {
+        next_player_state.set(if player_state.on_land() {
             PlayerState::Idle
         } else {
             PlayerState::Swim
-        };
+        });
     }
 }
 
 fn spawn_walk_trail(
     time: Res<Time>,
     mut commands: Commands,
-    player_state: Res<CurrentPlayerState>,
+    player_state: Res<State<PlayerState>>,
     player_angle: Res<PlayerDirection>,
     image_handle: Res<DefaultAtlasHandle>,
     sheet: ResMut<DefaultSpriteSheet>,
@@ -282,7 +323,7 @@ fn spawn_walk_trail(
         return;
     }
 
-    if !timer.0.finished() || !player_state.is_walk() {
+    if !timer.0.finished() || !player_state.walking() {
         return;
     }
 
@@ -318,17 +359,17 @@ fn clean_old_walk_trails(
 }
 
 fn camera_follow_player(
-    mut cam_query: Query<(&Camera, &mut Transform), Without<Player>>,
+    mut camera_query: Query<(&Camera, &mut Transform), Without<Player>>,
     mut player_query: Query<&Transform, With<Player>>,
 ) {
     if player_query.is_empty() {
         return;
     }
 
-    let (_, mut cam_transform) = cam_query.get_single_mut().unwrap();
+    let (_, mut camera_transform) = camera_query.get_single_mut().unwrap();
     let player_transform = player_query.get_single_mut().unwrap();
 
-    cam_transform.translation = cam_transform.translation.lerp(
+    camera_transform.translation = camera_transform.translation.lerp(
         vec3(
             player_transform.translation.x,
             player_transform.translation.y,
@@ -336,25 +377,4 @@ fn camera_follow_player(
         ),
         0.05,
     );
-}
-
-impl CurrentPlayerState {
-    fn is_land(&self) -> bool {
-        match self.0 {
-            PlayerState::Idle => true,
-            PlayerState::Walk => true,
-            _ => false,
-        }
-    }
-
-    fn is_walk(&self) -> bool {
-        self.0 == PlayerState::Walk
-    }
-
-    fn is_jump(&self) -> bool {
-        match self.0 {
-            PlayerState::Jump(_) => true,
-            _ => false,
-        }
-    }
 }

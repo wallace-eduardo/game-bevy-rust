@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 
 use game::{
-    camera::CameraPlugin, player::*, show_fps::ShowFPSPlugin, terrain::*, BG_COLOR, WH, WW,
+    camera::CameraPlugin, player::*, show_fps::ShowFPSPlugin, terrain::*, BG_COLOR, WINDOW_H,
+    WINDOW_W,
 };
 
 fn main() {
@@ -14,7 +15,7 @@ fn main() {
                         mode: bevy::window::WindowMode::BorderlessFullscreen(
                             MonitorSelection::Primary,
                         ),
-                        resolution: (WW as f32, WH as f32).into(),
+                        resolution: (WINDOW_W as f32, WINDOW_H as f32).into(),
                         title: env!("CARGO_PKG_NAME").to_string(),
                         ..default()
                     }),
