@@ -117,10 +117,10 @@ fn handle_player_chunk_update_event(
     seed: Res<GenerationSeed>,
     mut current_chunks: ResMut<CurrentChunks>,
     mut texture_atlases: ResMut<Assets<TextureAtlasLayout>>,
-    mut ev_chunk_update: EventReader<PlayerChunkUpdateEvent>,
+    mut chunk_update_ev: EventReader<PlayerChunkUpdateEvent>,
     mut ground_tiles: ResMut<GroundTiles>,
 ) {
-    if ev_chunk_update.is_empty() {
+    if chunk_update_ev.is_empty() {
         return;
     }
 
@@ -134,7 +134,7 @@ fn handle_player_chunk_update_event(
     );
     let handle = texture_atlases.add(texture_atlas);
 
-    for new_chunk_pos in ev_chunk_update.read() {
+    for new_chunk_pos in chunk_update_ev.read() {
         let (x, y) = new_chunk_pos.0;
 
         let chunk_neighbors = [
