@@ -86,10 +86,6 @@ impl Plugin for PlayerPlugin {
             .add_systems(Update, update_player_chunk_pos)
             .add_systems(Update, clean_old_walk_trails)
             .add_systems(Update, update_player_sprite);
-        // .add_systems(
-        //     Update,
-        //     finish_jump.run_if(|state: Res<State<PlayerState>>| state.jumping()),
-        // );
     }
 }
 
@@ -174,34 +170,6 @@ fn update_player_state(
         _ => {}
     }
 }
-
-// fn finish_jump(
-//     mut player_query: Query<&Transform, With<Player>>,
-//     player_state: Res<State<PlayerState>>,
-//     mut next_player_state: ResMut<NextState<PlayerState>>,
-//     mut sprite_index: ResMut<PlayerSpriteIndex>,
-//     ground_tiles: Res<GroundTiles>,
-// ) {
-//     let transform = player_query.single_mut();
-//     let (x, y) = (transform.translation.x, transform.translation.y);
-//     let (x, y) = world_to_grid(x, y);
-//     let (x, y) = center_to_top_left_grid(x, y);
-//     let is_ground = ground_tiles.0.contains(&(x as i32, y as i32));
-
-//     match player_state.get() {
-//         PlayerState::Jump(jumped_at) => {
-//             if jumped_at.elapsed().as_secs_f32() > PLAYER_JUMP_TIME {
-//                 next_player_state.set(if is_ground {
-//                     PlayerState::Idle
-//                 } else {
-//                     PlayerState::Swim
-//                 });
-//                 sprite_index.0 = 0;
-//             }
-//         }
-//         _ => {}
-//     }
-// }
 
 fn update_player_sprite(
     time: Res<Time>,
