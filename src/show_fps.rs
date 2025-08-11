@@ -6,7 +6,7 @@ pub struct ShowFPSPlugin;
 impl Plugin for ShowFPSPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(FpsOverlayPlugin {
-            config: FpsOverlayConfig {
+        config: FpsOverlayConfig {
                 text_config: TextFont {
                     // Here we define size of our overlay
                     font_size: 22.0,
@@ -14,10 +14,12 @@ impl Plugin for ShowFPSPlugin {
                     font: default(),
                     // We could also disable font smoothing,
                     font_smoothing: FontSmoothing::default(),
+                    line_height: bevy::text::LineHeight::Px(22.0),
                 },
                 // We can also change color of the overlay
                 text_color: Color::srgb(0.0, 1.0, 0.0),
                 enabled: true,
+                refresh_interval: std::time::Duration::from_millis(100),
             },
         });
     }

@@ -3,12 +3,11 @@ use bevy::{
     math::{uvec2, vec3},
     prelude::*,
     time::common_conditions::on_timer,
-    utils::{HashMap, HashSet},
 };
 use noise::{NoiseFn, Perlin};
 use player::{CurrentPlayerChunkPosition, PlayerChunkUpdateEvent};
 use rand::Rng;
-use std::time::Duration;
+use std::{collections::{HashMap, HashSet}, time::Duration};
 
 #[derive(Component)]
 struct TileComponent;
@@ -73,7 +72,7 @@ fn handle_terrain_reset_event(
 
     // Trigger world re-generation
     let (x, y) = player_pos.0;
-    ev_writer.send(PlayerChunkUpdateEvent((x, y)));
+    ev_writer.write(PlayerChunkUpdateEvent((x, y)));
 }
 
 fn clean_ground_tiles(

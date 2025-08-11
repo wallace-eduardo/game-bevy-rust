@@ -54,5 +54,5 @@ fn handle_settings_input(
         return;
     }
 
-    writer.send(ResetTerrainEvent);
+    writer.write(ResetTerrainEvent);
 }

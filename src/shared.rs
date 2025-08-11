@@ -1,4 +1,5 @@
-use bevy::{prelude::Resource, utils::HashSet};
+use bevy::prelude::Resource;
+use std::collections::HashSet;
 
 use crate::*;
 

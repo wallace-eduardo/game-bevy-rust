@@ -1,5 +1,6 @@
 use crate::*;
-use bevy::{math::*, prelude::*, utils::Instant};
+use bevy::{math::*, prelude::*};
+use std::time::Instant;
 
 pub struct PlayerPlugin;
 
@@ -131,13 +132,13 @@ fn update_player_state(
     mut next_player_state: ResMut<NextState<PlayerState>>,
     mut sprite_index: ResMut<PlayerSpriteIndex>,
     ground_tiles: Res<GroundTiles>,
-    mut player_query: Query<&Transform, With<Player>>,
+    player_query: Query<&Transform, With<Player>>,
 ) {
     if player_query.is_empty() {
         return;
     }
 
-    let transform = player_query.single_mut();
+    let transform = player_query.single().unwrap();
     let (x, y) = (transform.translation.x, transform.translation.y);
     let (x, y) = world_to_grid(x, y);
     let (x, y) = center_to_top_left_grid(x, y);
@@ -150,7 +151,7 @@ fn update_player_state(
         next_player_state.set(PlayerState::Jump(Instant::now()));
     }
 
-    let transform = player_query.single_mut();
+    let transform = player_query.single().unwrap();
     let (x, y) = (transform.translation.x, transform.translation.y);
     let (x, y) = world_to_grid(x, y);
     let (x, y) = center_to_top_left_grid(x, y);
@@ -181,7 +182,7 @@ fn update_player_sprite(
         return;
     }
 
-    let (mut sprite, mut timer) = query.single_mut();
+    let (mut sprite, mut timer) = query.single_mut().unwrap();
     timer.tick(time.delta());
 
     if player_state.walking() && timer.finished() {
@@ -209,7 +210,7 @@ fn update_player_chunk_pos(
         return;
     }
 
-    let transform = player_query.single();
+    let transform = player_query.single().unwrap();
     let (x, y) = (transform.translation.x, transform.translation.y);
     let (a, b) = world_to_grid(x, y);
     let (a, b) = center_to_top_left_grid(a, b);
@@ -220,7 +221,7 @@ fn update_player_chunk_pos(
         return;
     }
 
-    chunk_update_event.send(PlayerChunkUpdateEvent((x, y)));
+    chunk_update_event.write(PlayerChunkUpdateEvent((x, y)));
     chunk_position.0 = (x, y);
 }
 
@@ -238,7 +239,7 @@ fn handle_player_input(
         return;
     }
 
-    let mut transform = player_query.single_mut();
+    let mut transform = player_query.single_mut().unwrap();
     let w_key = keys.pressed(KeyCode::KeyW);
     let a_key = keys.pressed(KeyCode::KeyA);
     let s_key = keys.pressed(KeyCode::KeyS);
@@ -305,7 +306,7 @@ fn spawn_walk_trail(
     image_handle: Res<DefaultAtlasHandle>,
     sheet: ResMut<DefaultSpriteSheet>,
     mut timer: ResMut<WalkTrailTimer>,
-    mut player_query: Query<&Transform, With<Player>>,
+    player_query: Query<&Transform, With<Player>>,
 ) {
     timer.0.tick(time.delta());
     if player_query.is_empty() {
@@ -316,7 +317,7 @@ fn spawn_walk_trail(
         return;
     }
 
-    let transform = player_query.single_mut();
+    let transform = player_query.single().unwrap();
     commands.spawn((
         Sprite::from_atlas_image(
             sheet.0.clone().unwrap(),
@@ -349,14 +350,14 @@ fn clean_old_walk_trails(
 
 fn camera_follow_player(
     mut camera_query: Query<(&Camera, &mut Transform), Without<Player>>,
-    mut player_query: Query<&Transform, With<Player>>,
+    player_query: Query<&Transform, With<Player>>,
 ) {
     if player_query.is_empty() {
         return;
     }
 
-    let (_, mut camera_transform) = camera_query.get_single_mut().unwrap();
-    let player_transform = player_query.get_single_mut().unwrap();
+    let (_, mut camera_transform) = camera_query.single_mut().unwrap();
+    let player_transform = player_query.single().unwrap();
 
     camera_transform.translation = camera_transform.translation.lerp(
         vec3(
