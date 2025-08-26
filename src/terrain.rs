@@ -29,10 +29,10 @@ pub struct TerrainPlugin;
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         app.insert_resource(GroundTiles(HashSet::new()))
             .insert_resource(CurrentChunks(HashMap::new()))
-            .insert_resource(GenerationSeed(rng.gen()))
+            .insert_resource(GenerationSeed(rng.random()))
             .add_systems(Update, handle_terrain_reset_event)
             .add_systems(Update, despawn_chunks)
             .add_systems(
@@ -67,8 +67,8 @@ fn handle_terrain_reset_event(
     chunks.0.clear();
     ground_tiles.0.clear();
 
-    let mut rng = rand::thread_rng();
-    seed.0 = rng.gen();
+    let mut rng = rand::rng();
+    seed.0 = rng.random();
 
     // Trigger world re-generation
     let (x, y) = player_pos.0;
@@ -206,7 +206,7 @@ fn handle_player_chunk_update_event(
 }
 
 fn gen_chunk(gen_seed: u32, start: (i32, i32)) -> (HashSet<Tile>, HashSet<(i32, i32)>) {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let noise = Perlin::new(gen_seed);
 
     let mut tiles = HashSet::new();
@@ -219,7 +219,7 @@ fn gen_chunk(gen_seed: u32, start: (i32, i32)) -> (HashSet<Tile>, HashSet<(i32, 
             let noise_val3 = noise.get([x as f64 / 43.5, y as f64 / 43.5]);
             let noise_val4 = noise.get([x as f64 / 23.5, y as f64 / 23.5]);
             let noise_val = (noise_val1 + noise_val2 + noise_val3 + noise_val4) / 4.0;
-            let chance = rng.gen_range(0.0..1.0);
+            let chance = rng.random_range(0.0..1.0);
 
             // Ground
             if noise_val > 0.0 {
@@ -240,22 +240,22 @@ fn gen_chunk(gen_seed: u32, start: (i32, i32)) -> (HashSet<Tile>, HashSet<(i32, 
             }
             // Patch Forest
             if noise_val3 > 0.5 && noise_val < 0.5 && chance > 0.4 {
-                let chance2 = rng.gen_range(0.0..1.0);
+                let chance2 = rng.random_range(0.0..1.0);
                 let tile = if chance2 > 0.7 {
-                    rng.gen_range(24..=26)
+                    rng.random_range(24..=26)
                 } else {
-                    rng.gen_range(24..=25)
+                    rng.random_range(24..=25)
                 };
                 tiles.insert(Tile::new((x, y), tile, 3));
                 continue;
             }
             // Sparse Forest
             if noise_val4 > 0.4 && noise_val < 0.5 && noise_val3 < 0.5 && chance > 0.9 {
-                let chance = rng.gen_range(0.0..1.0);
+                let chance = rng.random_range(0.0..1.0);
                 let tile = if chance > 0.78 {
-                    rng.gen_range(28..=29)
+                    rng.random_range(28..=29)
                 } else {
-                    rng.gen_range(24..=25)
+                    rng.random_range(24..=25)
                 };
                 tiles.insert(Tile::new((x, y), tile, 3));
                 continue;
@@ -263,14 +263,14 @@ fn gen_chunk(gen_seed: u32, start: (i32, i32)) -> (HashSet<Tile>, HashSet<(i32, 
 
             // Settlements
             if noise_val > 0.1 && noise_val < 0.3 && noise_val3 < 0.4 && chance > 0.8 {
-                let chance2 = rng.gen_range(0.0..1.0);
+                let chance2 = rng.random_range(0.0..1.0);
 
                 if chance2 > 0.98 {
-                    let chance3 = rng.gen_range(0.0..1.0);
+                    let chance3 = rng.random_range(0.0..1.0);
                     let tile = if chance3 > 0.75 {
-                        rng.gen_range(18..=19)
+                        rng.random_range(18..=19)
                     } else {
-                        rng.gen_range(16..=17)
+                        rng.random_range(16..=17)
                     };
                     tiles.insert(Tile::new((x, y), tile, 8));
                 } else {

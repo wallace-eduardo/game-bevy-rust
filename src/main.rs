@@ -1,3 +1,4 @@
+use std::env;
 use bevy::prelude::*;
 
 use game::{
@@ -5,16 +6,21 @@ use game::{
     WINDOW_W,
 };
 
+
 fn main() {
+    env::set_var("RUST_LOG", "info");
+    env::set_var("RUST_BACKTRACE", "1");
+    env::set_var("BEVY_ASSET_ROOT", "A:/game");
+
     App::new()
         .add_plugins(
             DefaultPlugins
                 .set(ImagePlugin::default_nearest())
                 .set(WindowPlugin {
                     primary_window: Some(Window {
-                        mode: bevy::window::WindowMode::BorderlessFullscreen(
-                            MonitorSelection::Primary,
-                        ),
+                        // mode: bevy::window::WindowMode::BorderlessFullscreen(
+                        //     MonitorSelection::Primary,
+                        // ),
                         resolution: (WINDOW_W as f32, WINDOW_H as f32).into(),
                         title: env!("CARGO_PKG_NAME").to_string(),
                         ..default()

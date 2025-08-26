@@ -5,8 +5,6 @@ use std::time::Instant;
 pub struct PlayerPlugin;
 
 #[derive(Component)]
-struct WalkTrail(Instant);
-#[derive(Component)]
 struct Player;
 #[derive(Resource)]
 struct PlayerSpriteIndex(usize);
@@ -14,8 +12,6 @@ struct PlayerSpriteIndex(usize);
 struct AnimationTimer(Timer);
 #[derive(Resource, Default)]
 struct PlayerDirection(f32);
-#[derive(Resource)]
-struct WalkTrailTimer(Timer);
 #[derive(Resource)]
 struct DefaultAtlasHandle(pub Option<Handle<TextureAtlasLayout>>);
 #[derive(Resource, Default)]
@@ -43,11 +39,7 @@ enum PlayerState {
 
 impl PlayerState {
     fn on_land(&self) -> bool {
-        match self {
-            PlayerState::Idle => true,
-            PlayerState::Walk => true,
-            _ => false,
-        }
+        *self == PlayerState::Idle || *self == PlayerState::Walk
     }
 
     fn walking(&self) -> bool {
@@ -72,10 +64,6 @@ impl Plugin for PlayerPlugin {
             .insert_resource(PlayerSpriteIndex(0))
             .insert_resource(PlayerDirection(0.0))
             .insert_resource(CurrentPlayerChunkPosition::default())
-            .insert_resource(WalkTrailTimer(Timer::from_seconds(
-                WALK_TRAIL_TIMER,
-                TimerMode::Repeating,
-            )))
             .insert_resource(DefaultAtlasHandle(None))
             .insert_resource(DefaultSpriteSheet(None))
             .add_event::<PlayerChunkUpdateEvent>()
@@ -83,9 +71,7 @@ impl Plugin for PlayerPlugin {
             .add_systems(Update, update_player_state)
             .add_systems(Update, camera_follow_player)
             .add_systems(Update, handle_player_input)
-            .add_systems(Update, spawn_walk_trail)
             .add_systems(Update, update_player_chunk_pos)
-            .add_systems(Update, clean_old_walk_trails)
             .add_systems(Update, update_player_sprite);
     }
 }
@@ -150,12 +136,6 @@ fn update_player_state(
     if is_ground && player_state.swimming() {
         next_player_state.set(PlayerState::Jump(Instant::now()));
     }
-
-    let transform = player_query.single().unwrap();
-    let (x, y) = (transform.translation.x, transform.translation.y);
-    let (x, y) = world_to_grid(x, y);
-    let (x, y) = center_to_top_left_grid(x, y);
-    let is_ground = ground_tiles.0.contains(&(x as i32, y as i32));
 
     match player_state.get() {
         PlayerState::Jump(jumped_at) => {
@@ -284,68 +264,12 @@ fn handle_player_input(
 
         transform.rotation = Quat::from_rotation_z(sprite_angle);
         player_direction.0 = player_angle;
-        next_player_state.set(if player_state.on_land() {
+         next_player_state.set(if player_state.on_land() {
             PlayerState::Walk
         } else {
             PlayerState::Swim
         });
-    } else {
-        next_player_state.set(if player_state.on_land() {
-            PlayerState::Idle
-        } else {
-            PlayerState::Swim
-        });
-    }
-}
-
-fn spawn_walk_trail(
-    time: Res<Time>,
-    mut commands: Commands,
-    player_state: Res<State<PlayerState>>,
-    player_angle: Res<PlayerDirection>,
-    image_handle: Res<DefaultAtlasHandle>,
-    sheet: ResMut<DefaultSpriteSheet>,
-    mut timer: ResMut<WalkTrailTimer>,
-    player_query: Query<&Transform, With<Player>>,
-) {
-    timer.0.tick(time.delta());
-    if player_query.is_empty() {
-        return;
-    }
-
-    if !timer.0.finished() || !player_state.walking() {
-        return;
-    }
-
-    let transform = player_query.single().unwrap();
-    commands.spawn((
-        Sprite::from_atlas_image(
-            sheet.0.clone().unwrap(),
-            TextureAtlas {
-                layout: image_handle.0.clone().unwrap(),
-                index: 50usize,
-            },
-        ),
-        Transform::from_scale(Vec3::splat(SPRITE_SCALE_FACTOR as f32 - 1.0))
-            .with_translation(vec3(transform.translation.x, transform.translation.y, 1.0))
-            .with_rotation(Quat::from_rotation_z(player_angle.0)),
-        WalkTrail(Instant::now()),
-    ));
-}
-
-fn clean_old_walk_trails(
-    mut commands: Commands,
-    query: Query<(Entity, &WalkTrail), With<WalkTrail>>,
-) {
-    if query.is_empty() {
-        return;
-    }
-
-    for (entity, trail) in query.iter() {
-        if trail.0.elapsed().as_secs_f32() > TRAIL_LIFE_SPAN {
-            commands.entity(entity).despawn();
-        }
-    }
+    } 
 }
 
 fn camera_follow_player(
